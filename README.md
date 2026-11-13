@@ -70,7 +70,7 @@ INBRAIN Planner answers these questions from routine pre-operative MRI, with one
 
 1. Install [3D Slicer](https://download.slicer.org/) 5.x.
 2. **SlicerDMRI** and **SlicerElastix** are required. If either is missing, the module downloads and installs it in the background the first time it loads (network needed) and asks you to restart Slicer; you can also install them from the Extensions Manager yourself.
-3. Optional, for the brain atlas: the `space` template folder of [trajectoryGuide](https://github.com/greydongilmore/trajectoryGuideModules/releases) (only `tpl-harvardoxford/` is used).
+3. Optional, only for step ⑨ (brain atlas): the `space.zip` asset of a [trajectoryGuide release](https://github.com/greydongilmore/trajectoryGuideModules/releases) (about 1.6 GB; only its `tpl-harvardoxford/` folder is used). The atlas is not bundled because its redistribution licence is not clear; it has its own licence and citation terms. Planning, scoring and export work without it.
 4. Data: a case from the [UCSF-PDGM](https://doi.org/10.7937/tcia.bdgf-8v37) dataset (TCIA) or any case with the same files.
 
 ### Installation
@@ -135,7 +135,7 @@ INBRAIN_Planner/
 └── docs/                           User_Guide.md, Run_Manual.md
 ```
 
-The brain-atlas step needs the Harvard-Oxford template folder `tpl-harvardoxford` (TemplateFlow layout). Put it in `INBRAINPlanner/Resources/ExtLibs/space/` or choose its folder in ⑨.
+The brain-atlas step (optional) needs the Harvard-Oxford template folder `tpl-harvardoxford` (TemplateFlow layout). Unzip `space.zip`, then either put the folder in `INBRAINPlanner/Resources/ExtLibs/space/` or choose its parent `space` folder in ⑨. Only the template (`templates/*_T1w.nii.gz`) and the two segmentation files (`segmentations/*label-cort*` and `*label-sub*`) are read.
 
 No patient data, templates or third-party binaries are included.
 
