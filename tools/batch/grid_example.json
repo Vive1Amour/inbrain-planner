@@ -1,0 +1,11 @@
+{
+  "_comment": "widgets = 界面参数（键同插件参数表）；extra = 规划脚本变量。每个键给一组候选值，按笛卡尔积组合。",
+  "widgets": {
+    "STIM_I": [4, 8, 12],
+    "ANGLE_STEP": [30, 15]
+  },
+  "extra": {
+    "ANGLE_MODE": ["grid", "tangent"],
+    "WIN_FIT": [false]
+  }
+}

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.DS_Store
+# patient data and outputs never go into the repository
+*.nii
+*.nii.gz
+*.nrrd
+*.mrb
+*.vtk
+*.h5
+work/
+INBRAINPlanner/Resources/ExtLibs/
