@@ -69,7 +69,7 @@ INBRAIN Planner answers these questions from routine pre-operative MRI, with one
 ### Prerequisites
 
 1. Install [3D Slicer](https://download.slicer.org/) 5.x.
-2. In the Extensions Manager install **SlicerDMRI** and **SlicerElastix**, then restart Slicer.
+2. **SlicerDMRI** and **SlicerElastix** are required. If either is missing, the module downloads and installs it in the background the first time it loads (network needed) and asks you to restart Slicer; you can also install them from the Extensions Manager yourself.
 3. Optional, for the brain atlas: the `space` template folder of [trajectoryGuide](https://github.com/greydongilmore/trajectoryGuideModules/releases) (only `tpl-harvardoxford/` is used).
 4. Data: a case from the [UCSF-PDGM](https://doi.org/10.7937/tcia.bdgf-8v37) dataset (TCIA) or any case with the same files.
 

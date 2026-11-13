@@ -13,6 +13,7 @@ for _m in (INBRAINPlannerLib.i18n, INBRAINPlannerLib.config, INBRAINPlannerLib.l
 from INBRAINPlannerLib.i18n import *
 from INBRAINPlannerLib.config import *
 from INBRAINPlannerLib.logic import INBRAINPlannerLogic
+from INBRAINPlannerLib.deps import ensure_dependencies     # 缺 SlicerDMRI / SlicerElastix 时自动下载安装
 REG_MIN_TRACTS = 20     # 自动配准判定：CST 和 AF 都至少这么多条才算正常
 
 
@@ -21,7 +22,8 @@ class INBRAINPlanner(ScriptedLoadableModule):
         ScriptedLoadableModule.__init__(self, parent)
         parent.title = "INBRAIN Planner"
         parent.categories = ["INBRAIN"]
-        parent.contributors = ["INBRAIN Neuroelectronics"]
+        qt.QTimer.singleShot(3000, ensure_dependencies)     # 缺依赖扩展时后台下载安装（需联网，装完重启）
+        parent.contributors = ["Zelong Gan"]
         parent.helpText = L("术前规划开颅位置和电极阵列放置：输入 MRI、肿瘤分割、弥散数据和器件参数，"
                             "输出最少放置次数的计划和清醒期用时估计。所有阈值和器件参数都可调。",
                             "Preoperative planning of craniotomy site and electrode-array placement: input MRI, tumour segmentation, "
@@ -35,6 +37,7 @@ class INBRAINPlannerWidget(ScriptedLoadableModuleWidget):
 
     def setup(self):
         ScriptedLoadableModuleWidget.setup(self)
+        ensure_dependencies()                               # 打开模块时再检查一次（每个会话只提示一次）
         self.logic = INBRAINPlannerLogic(); self.w = {}; self.device_json = None; self.G = None
         self.proc = None; self.queue = []
         L = self.layout
