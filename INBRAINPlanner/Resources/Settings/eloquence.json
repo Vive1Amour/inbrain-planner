@@ -1,0 +1,390 @@
+{
+  "_comment": "Brain-region priors for stimulation targets and task suggestions by tumour location. Region indices follow the Harvard-Oxford cortical atlas (thr-25, 1 mm). 'prior' multiplies the weight of stimulation targets in that region (1 = neutral). Values are relative weights set from the qualitative findings of Tate 2014 (Brain), Sarubbo 2020 (NeuroImage) and Ojemann 1989 (J Neurosurg); they are not calibrated probabilities. Groups and tasks follow Fernandez Coello 2013 (J Neurosurg) and Kokkinos 2023 (Brain Sci).",
+  "atlas": {
+    "template": "tpl-harvardoxford/templates/tpl-harvardoxford_res-1000_T1w.nii.gz",
+    "cortical": "tpl-harvardoxford/segmentations/tpl-harvardoxford_atlas-harvardoxford_thr-25_label-cort_res-1000_dseg.nii.gz",
+    "subcortical": "tpl-harvardoxford/segmentations/tpl-harvardoxford_atlas-harvardoxford_thr-25_label-sub_res-1000_dseg.nii.gz"
+  },
+  "regions": {
+    "1": {
+      "name": "Frontal pole",
+      "name_zh": "额极",
+      "prior": 1.0,
+      "group": "frontal_ant"
+    },
+    "2": {
+      "name": "Insular cortex",
+      "name_zh": "岛叶",
+      "prior": 1.2,
+      "group": "insula"
+    },
+    "3": {
+      "name": "Superior frontal gyrus",
+      "name_zh": "额上回",
+      "prior": 1.1,
+      "group": "frontal_post"
+    },
+    "4": {
+      "name": "Middle frontal gyrus",
+      "name_zh": "额中回",
+      "prior": 1.2,
+      "group": "frontal_post"
+    },
+    "5": {
+      "name": "Inferior frontal gyrus, pars triangularis",
+      "name_zh": "额下回三角部",
+      "prior": 1.4,
+      "group": "ifg"
+    },
+    "6": {
+      "name": "Inferior frontal gyrus, pars opercularis",
+      "name_zh": "额下回岛盖部",
+      "prior": 1.8,
+      "group": "ifg"
+    },
+    "7": {
+      "name": "Precentral gyrus",
+      "name_zh": "中央前回",
+      "prior": 2.0,
+      "group": "frontal_post"
+    },
+    "8": {
+      "name": "Temporal pole",
+      "name_zh": "颞极",
+      "prior": 1.0,
+      "group": "temporal_ant"
+    },
+    "9": {
+      "name": "Superior temporal gyrus, anterior division",
+      "name_zh": "颞上回前部",
+      "prior": 1.2,
+      "group": "temporal_ant"
+    },
+    "10": {
+      "name": "Superior temporal gyrus, posterior division",
+      "name_zh": "颞上回后部",
+      "prior": 1.8,
+      "group": "temporal_post"
+    },
+    "11": {
+      "name": "Middle temporal gyrus, anterior division",
+      "name_zh": "颞中回前部",
+      "prior": 1.1,
+      "group": "temporal_ant"
+    },
+    "12": {
+      "name": "Middle temporal gyrus, posterior division",
+      "name_zh": "颞中回后部",
+      "prior": 1.8,
+      "group": "temporal_post"
+    },
+    "13": {
+      "name": "Middle temporal gyrus, temporo-occipital part",
+      "name_zh": "颞中回颞枕部",
+      "prior": 1.5,
+      "group": "temporal_post"
+    },
+    "14": {
+      "name": "Inferior temporal gyrus, anterior division",
+      "name_zh": "颞下回前部",
+      "prior": 1.0,
+      "group": "temporal_ant"
+    },
+    "15": {
+      "name": "Inferior temporal gyrus, posterior division",
+      "name_zh": "颞下回后部",
+      "prior": 1.2,
+      "group": "temporal_post"
+    },
+    "16": {
+      "name": "Inferior temporal gyrus, temporo-occipital part",
+      "name_zh": "颞下回颞枕部",
+      "prior": 1.2,
+      "group": "temporal_post"
+    },
+    "17": {
+      "name": "Postcentral gyrus",
+      "name_zh": "中央后回",
+      "prior": 1.4,
+      "group": "parietal_sup"
+    },
+    "18": {
+      "name": "Superior parietal lobule",
+      "name_zh": "顶上小叶",
+      "prior": 1.1,
+      "group": "parietal_sup"
+    },
+    "19": {
+      "name": "Supramarginal gyrus, anterior division",
+      "name_zh": "缘上回前部",
+      "prior": 1.8,
+      "group": "parietal_inf"
+    },
+    "20": {
+      "name": "Supramarginal gyrus, posterior division",
+      "name_zh": "缘上回后部",
+      "prior": 1.8,
+      "group": "parietal_inf"
+    },
+    "21": {
+      "name": "Angular gyrus",
+      "name_zh": "角回",
+      "prior": 1.5,
+      "group": "parietal_inf"
+    },
+    "22": {
+      "name": "Lateral occipital cortex, superior division",
+      "name_zh": "枕外侧皮层上部",
+      "prior": 1.0,
+      "group": "occipital"
+    },
+    "23": {
+      "name": "Lateral occipital cortex, inferior division",
+      "name_zh": "枕外侧皮层下部",
+      "prior": 1.0,
+      "group": "occipital"
+    },
+    "24": {
+      "name": "Intracalcarine cortex",
+      "name_zh": "距状沟内皮层",
+      "prior": 1.0,
+      "group": "occipital"
+    },
+    "25": {
+      "name": "Frontal medial cortex",
+      "name_zh": "额内侧皮层",
+      "prior": 1.0,
+      "group": "frontal_ant"
+    },
+    "26": {
+      "name": "Juxtapositional lobule (SMA)",
+      "name_zh": "辅助运动区",
+      "prior": 1.4,
+      "group": "frontal_post"
+    },
+    "27": {
+      "name": "Subcallosal cortex",
+      "name_zh": "胼胝体下皮层",
+      "prior": 1.0,
+      "group": "frontal_ant"
+    },
+    "28": {
+      "name": "Paracingulate gyrus",
+      "name_zh": "旁扣带回",
+      "prior": 1.0,
+      "group": "frontal_ant"
+    },
+    "29": {
+      "name": "Cingulate gyrus, anterior division",
+      "name_zh": "扣带回前部",
+      "prior": 1.0,
+      "group": "frontal_ant"
+    },
+    "30": {
+      "name": "Cingulate gyrus, posterior division",
+      "name_zh": "扣带回后部",
+      "prior": 1.0,
+      "group": "parietal_sup"
+    },
+    "31": {
+      "name": "Precuneus",
+      "name_zh": "楔前叶",
+      "prior": 1.0,
+      "group": "parietal_sup"
+    },
+    "32": {
+      "name": "Cuneus",
+      "name_zh": "楔叶",
+      "prior": 1.0,
+      "group": "occipital"
+    },
+    "33": {
+      "name": "Frontal orbital cortex",
+      "name_zh": "额眶皮层",
+      "prior": 1.0,
+      "group": "frontal_ant"
+    },
+    "34": {
+      "name": "Parahippocampal gyrus, anterior division",
+      "name_zh": "海马旁回前部",
+      "prior": 1.0,
+      "group": "temporal_ant"
+    },
+    "35": {
+      "name": "Parahippocampal gyrus, posterior division",
+      "name_zh": "海马旁回后部",
+      "prior": 1.0,
+      "group": "temporal_post"
+    },
+    "36": {
+      "name": "Lingual gyrus",
+      "name_zh": "舌回",
+      "prior": 1.0,
+      "group": "occipital"
+    },
+    "37": {
+      "name": "Temporal fusiform cortex, anterior division",
+      "name_zh": "颞叶梭状回前部",
+      "prior": 1.0,
+      "group": "temporal_ant"
+    },
+    "38": {
+      "name": "Temporal fusiform cortex, posterior division",
+      "name_zh": "颞叶梭状回后部",
+      "prior": 1.0,
+      "group": "temporal_post"
+    },
+    "39": {
+      "name": "Temporal occipital fusiform cortex",
+      "name_zh": "颞枕梭状回",
+      "prior": 1.0,
+      "group": "temporal_post"
+    },
+    "40": {
+      "name": "Occipital fusiform gyrus",
+      "name_zh": "枕叶梭状回",
+      "prior": 1.0,
+      "group": "occipital"
+    },
+    "41": {
+      "name": "Frontal operculum",
+      "name_zh": "额岛盖",
+      "prior": 1.5,
+      "group": "ifg"
+    },
+    "42": {
+      "name": "Central opercular cortex",
+      "name_zh": "中央岛盖",
+      "prior": 1.6,
+      "group": "ifg"
+    },
+    "43": {
+      "name": "Parietal operculum",
+      "name_zh": "顶岛盖",
+      "prior": 1.3,
+      "group": "parietal_inf"
+    },
+    "44": {
+      "name": "Planum polare",
+      "name_zh": "颞极平面",
+      "prior": 1.0,
+      "group": "temporal_ant"
+    },
+    "45": {
+      "name": "Heschl's gyrus",
+      "name_zh": "颞横回",
+      "prior": 1.2,
+      "group": "temporal_post"
+    },
+    "46": {
+      "name": "Planum temporale",
+      "name_zh": "颞平面",
+      "prior": 1.5,
+      "group": "temporal_post"
+    },
+    "47": {
+      "name": "Supracalcarine cortex",
+      "name_zh": "距状沟上皮层",
+      "prior": 1.0,
+      "group": "occipital"
+    },
+    "48": {
+      "name": "Occipital pole",
+      "name_zh": "枕极",
+      "prior": 1.0,
+      "group": "occipital"
+    }
+  },
+  "groups": {
+    "frontal_post": {
+      "name": "Posterior frontal / precentral",
+      "name_zh": "额叶后部、中央前回",
+      "functions": "Motor; speech articulation (ventral premotor)",
+      "functions_zh": "运动；言语产生（腹侧运动前区）",
+      "tasks": "Counting, hand and face movement",
+      "tasks_zh": "数数、手和面部动作",
+      "tracts": "CST, frontal aslant tract",
+      "tracts_zh": "皮质脊髓束、额斜束"
+    },
+    "ifg": {
+      "name": "Inferior frontal gyrus / operculum",
+      "name_zh": "额下回、岛盖",
+      "functions": "Speech production, language",
+      "functions_zh": "言语产生、语言",
+      "tasks": "Counting, picture naming",
+      "tasks_zh": "数数、图片命名",
+      "tracts": "AF/SLF (anterior end), IFOF",
+      "tracts_zh": "弓状束/上纵束前端、下额枕束"
+    },
+    "temporal_post": {
+      "name": "Posterior temporal",
+      "name_zh": "颞叶后部",
+      "functions": "Comprehension, naming",
+      "functions_zh": "语言理解、命名",
+      "tasks": "Picture naming, repetition, reading",
+      "tasks_zh": "图片命名、复述、阅读",
+      "tracts": "AF, IFOF, ILF",
+      "tracts_zh": "弓状束、下额枕束、下纵束"
+    },
+    "parietal_inf": {
+      "name": "Inferior parietal (supramarginal / angular)",
+      "name_zh": "顶叶下部（缘上回、角回）",
+      "functions": "Phonological processing, naming, reading, calculation",
+      "functions_zh": "语音加工、命名、阅读、计算",
+      "tasks": "Picture naming, repetition, reading, calculation",
+      "tasks_zh": "图片命名、复述、阅读、计算",
+      "tracts": "AF/SLF",
+      "tracts_zh": "弓状束/上纵束"
+    },
+    "parietal_sup": {
+      "name": "Postcentral / superior parietal",
+      "name_zh": "中央后回、顶上小叶",
+      "functions": "Somatosensory, sensorimotor integration",
+      "functions_zh": "体感、感觉运动整合",
+      "tasks": "Sensory report, hand movement",
+      "tasks_zh": "感觉报告、手部动作",
+      "tracts": "CST, thalamocortical sensory fibres",
+      "tracts_zh": "皮质脊髓束、丘脑皮层感觉纤维"
+    },
+    "temporal_ant": {
+      "name": "Anterior temporal",
+      "name_zh": "颞叶前部",
+      "functions": "Semantic memory, naming of people and objects",
+      "functions_zh": "语义记忆、人名和物体命名",
+      "tasks": "Picture naming, semantic association",
+      "tasks_zh": "图片命名、语义联想",
+      "tracts": "Uncinate fasciculus, IFOF",
+      "tracts_zh": "钩束、下额枕束"
+    },
+    "frontal_ant": {
+      "name": "Anterior frontal",
+      "name_zh": "额叶前部",
+      "functions": "Executive functions; usually not mapped for language",
+      "functions_zh": "执行功能；一般不做语言定位",
+      "tasks": "Executive tasks if needed (e.g. Stroop)",
+      "tasks_zh": "必要时做执行功能任务（如 Stroop）",
+      "tracts": "Frontal aslant tract, IFOF",
+      "tracts_zh": "额斜束、下额枕束"
+    },
+    "insula": {
+      "name": "Insula",
+      "name_zh": "岛叶",
+      "functions": "Speech articulation; often reached through the opercula",
+      "functions_zh": "言语产生；通常要穿过岛盖",
+      "tasks": "Counting, naming",
+      "tasks_zh": "数数、命名",
+      "tracts": "IFOF, uncinate, lenticulostriate arteries",
+      "tracts_zh": "下额枕束、钩束、豆纹动脉"
+    },
+    "occipital": {
+      "name": "Occipital",
+      "name_zh": "枕叶",
+      "functions": "Vision; visual fields",
+      "functions_zh": "视觉、视野",
+      "tasks": "Visual field testing, reading",
+      "tasks_zh": "视野检查、阅读",
+      "tracts": "Optic radiation, ILF",
+      "tracts_zh": "视辐射、下纵束"
+    }
+  }
+}

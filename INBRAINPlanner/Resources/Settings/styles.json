@@ -1,0 +1,215 @@
+{
+ "_comment": "Factory display style of each 3D layer: colour (RGB 0-1) and opacity (0-1). Edit here instead of in the code; 'Factory style' in the plugin returns to these values.",
+ "layers": {
+  "stim": {
+   "name": "Stimulation target area (orange patch, reference only)",
+   "name_zh": "刺激目标区（橙色面，仅参考）",
+   "color": [
+    1.0,
+    0.45,
+    0.1
+   ],
+   "opacity": 0.5
+  },
+  "rec": {
+   "name": "Recording target area (blue patch, reference only)",
+   "name_zh": "记录目标区（蓝色面，仅参考）",
+   "color": [
+    0.35,
+    0.65,
+    1.0
+   ],
+   "opacity": 0.35
+  },
+  "out": {
+   "name": "Targets outside window (grey patch)",
+   "name_zh": "骨窗外目标区（灰色面）",
+   "color": [
+    0.6,
+    0.6,
+    0.6
+   ],
+   "opacity": 0.3
+  },
+  "entry": {
+   "name": "Entry point",
+   "name_zh": "入口点",
+   "color": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "opacity": 1.0
+  },
+  "window": {
+   "name": "Window edge",
+   "name_zh": "骨窗边缘",
+   "color": [
+    0.25,
+    0.25,
+    0.25
+   ],
+   "opacity": 1.0
+  },
+  "vein": {
+   "name": "Surface veins (SWI)",
+   "name_zh": "表面大静脉（SWI）",
+   "color": [
+    0.15,
+    0.18,
+    0.5
+   ],
+   "opacity": 0.85
+  },
+  "large": {
+   "name": "Large contacts",
+   "name_zh": "大触点",
+   "color": [
+    0.2,
+    0.25,
+    0.35
+   ],
+   "opacity": 1.0
+  },
+  "small": {
+   "name": "Small contacts",
+   "name_zh": "小触点",
+   "color": [
+    0.55,
+    0.6,
+    0.68
+   ],
+   "opacity": 1.0
+  },
+  "cst": {
+   "name": "Corticospinal tract (CST)",
+   "name_zh": "皮质脊髓束 CST",
+   "color": [
+    0.0,
+    0.72,
+    0.72
+   ],
+   "opacity": 1.0
+  },
+  "af": {
+   "name": "Arcuate fasciculus (AF/SLF)",
+   "name_zh": "弓状束 AF/SLF",
+   "color": [
+    0.85,
+    0.3,
+    0.75
+   ],
+   "opacity": 1.0
+  },
+  "core": {
+   "name": "Tumour core (enhancing + necrosis)",
+   "name_zh": "肿瘤核心（强化 + 坏死）",
+   "color": [
+    0.5,
+    0.06,
+    0.12
+   ],
+   "opacity": 0.85
+  },
+  "flair": {
+   "name": "FLAIR infiltration zone",
+   "name_zh": "FLAIR 浸润带",
+   "color": [
+    0.8,
+    0.75,
+    0.95
+   ],
+   "opacity": 0.12
+  },
+  "brain": {
+   "name": "Brain surface",
+   "name_zh": "脑表面",
+   "color": [
+    0.85,
+    0.78,
+    0.72
+   ],
+   "opacity": 0.5
+  },
+  "skull": {
+   "name": "Skull (with window)",
+   "name_zh": "颅骨（开窗后）",
+   "color": [
+    0.93,
+    0.9,
+    0.82
+   ],
+   "opacity": 1.0
+  },
+  "flap": {
+   "name": "Removed bone flap",
+   "name_zh": "取下的骨瓣",
+   "color": [
+    0.85,
+    0.85,
+    0.85
+   ],
+   "opacity": 0.08
+  },
+  "em_good": {
+   "name": "Entry score: good",
+   "name_zh": "入口评分：好",
+   "color": [
+    0.1,
+    0.75,
+    0.2
+   ],
+   "opacity": 1.0
+  },
+  "em_mid": {
+   "name": "Entry score: medium",
+   "name_zh": "入口评分：中",
+   "color": [
+    0.95,
+    0.85,
+    0.2
+   ],
+   "opacity": 1.0
+  },
+  "em_poor": {
+   "name": "Entry score: poor",
+   "name_zh": "入口评分：差",
+   "color": [
+    1.0,
+    0.55,
+    0.1
+   ],
+   "opacity": 1.0
+  },
+  "em_ex": {
+   "name": "Excluded region",
+   "name_zh": "不能开颅区域",
+   "color": [
+    0.35,
+    0.35,
+    0.35
+   ],
+   "opacity": 0.6
+  },
+  "order": {
+   "name": "Placement order labels",
+   "name_zh": "放置顺序编号",
+   "color": [
+    0.1,
+    0.1,
+    0.1
+   ],
+   "opacity": 1.0
+  },
+  "path": {
+   "name": "Placement path",
+   "name_zh": "放置路径",
+   "color": [
+    0.3,
+    0.3,
+    0.38
+   ],
+   "opacity": 1.0
+  }
+ }
+}
