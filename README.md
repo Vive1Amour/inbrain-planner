@@ -2,62 +2,72 @@
   <img src="INBRAINPlanner.png" alt="INBRAIN Planner" width="96" height="96">
 </p>
 
-<h3 align="center">INBRAIN Planner</h3>
+<h1 align="center">INBRAIN Planner</h1>
 
 <p align="center">
-  A 3D Slicer extension for pre-operative planning of craniotomy site and cortical electrode-array placement in glioblastoma surgery.
+  Planning where to place brain electrodes <b>before</b> tumour surgery, so surgeons can map more of the tumour edge with fewer moves.
 </p>
 
-<details open="open">
-  <summary><b>Contents</b></summary>
-  <ol>
-    <li><a href="#about">About</a></li>
-    <li><a href="#at-a-glance">At a glance</a></li>
-    <li><a href="#features">Features</a></li>
-    <li><a href="#getting-started">Getting started</a></li>
-    <li><a href="#usage">Usage</a></li>
-    <li><a href="#repository-layout">Repository layout</a></li>
-    <li><a href="#roadmap">Roadmap</a></li>
-    <li><a href="#license">License</a></li>
-    <li><a href="#acknowledgements">Acknowledgements</a></li>
-  </ol>
-</details>
+<p align="center">
+  <a href="https://github.com/Vive1Amour/inbrain-planner/releases/latest">Download the plugin</a> ·
+  <a href="docs/Installation.md">Install and run</a> ·
+  <a href="docs/User_Guide.md">User guide</a>
+</p>
 
-## About
+![INBRAIN Planner running in 3D Slicer on case 0007](resources/imgs/slicer_ui_0007.jpg)
 
-During awake glioblastoma surgery, functional mapping is done point by point with a hand-held probe while a 4-contact strip only records after-discharges. High-density flexible arrays such as INBRAIN's graphene array can stimulate and record at many sites at once, but nothing tells the surgeon before surgery where to place them, how many times, in what order, or how long it will take.
+## In short
 
-INBRAIN Planner answers these questions from routine pre-operative MRI, with one goal: **verify the resection boundary segment by segment**. The outline of the enhancing core (optionally FLAIR) projected onto the cortex is cut into 1 cm segments; segments near CST/AF need mapping. A segment is decided by one contact on the edge and one 8 mm outside: if both are negative, the resection can be extended without loss of function. Arrays are laid along the boundary and decide several segments at once; conventional 1×4 strips are planned with the same workflow for comparison.
+- **Problem:** in glioblastoma surgery, surgeons want to remove as much tumour as possible without damaging language or movement. They test the brain around the tumour with electrodes during the operation, but deciding where to put the electrodes is done by hand, one position at a time.
+- **What I built:** a 3D Slicer plugin that uses each patient's MRI and nerve-fibre maps to plan, before surgery, where to place a high-density electrode array, at what angle and in what order, and compares it with today's 4-contact strips.
+- **Result (5 public cases, simulated):** about **40% fewer placements** and about **40% less mapping time**; in the two largest tumours the estimated removal rose from **42% to 65%** and from **72% to 88%**, above the 60% linked to longer survival.
 
-> **Research use only.** Times, costs and mapping results come from a model and literature parameters, have not been clinically validated, and do not replace intra-operative neurophysiological monitoring or clinical judgement.
+## Context
 
-![INBRAIN Planner](resources/imgs/UI_screenshot.png)
+I developed this project in the INBRAIN Neuroelectronics Industrial Seminar at Universitat Pompeu Fabra (2026). The brief: show how INBRAIN's graphene electrode array could improve functional mapping in brain-tumour surgery, compared with devices already on the market. I turned the idea into working software: the plugin, the planning algorithm, the time and cost model and all the results below.
 
-### Built with
+## The problem in plain words
 
-* 3D Slicer 5.x (tested on 5.12.4)
-* SlicerDMRI (tensor, FA, tractography) and SlicerElastix (registration)
-* Python 3, NumPy, SciPy (bundled with Slicer)
+Glioblastoma is the most common malignant brain tumour. Removing more of it is linked to longer survival, but the tumour often sits next to areas that control speech or movement. To find those areas, surgeons stimulate the brain surface with small electric currents while the patient is awake and see whether speech or movement is disrupted.
 
-## At a glance
+Today this is done with a hand-held probe, point by point, and a 4-contact strip that has to be moved many times. A high-density array has about 40 contacts that can both stimulate and record, so one placement can test much more of the tumour edge. The open question is **where to put it**. That is what this tool answers before the operation starts.
+
+| Term | Meaning |
+|---|---|
+| MRI, FLAIR | Brain scans; FLAIR shows the swollen, infiltrated tissue around the tumour |
+| Tractography | Reconstruction of nerve-fibre pathways from diffusion MRI |
+| CST / AF | Corticospinal tract (movement) / arcuate fasciculus (language) |
+| Craniotomy | The opening in the skull through which the surgeon works |
+| Resection | Surgical removal of tumour tissue |
+
+## How it works
 
 ![Planned boundary decisions for case 0007](resources/imgs/plan_0007.jpg)
 
-*Case UCSF-PDGM-0007. Each ball is a 1 cm segment of the projected tumour boundary. Green: both stimulation points (on the edge and 8 mm outside) and recording across the edge are possible. Yellow: only the edge can be tested. Red: near function but out of reach. Grey: far from motor and language pathways, resected by imaging.*
+1. **Reconstruct the anatomy.** MRI and segmentation give the brain and tumour; patient-specific tractography gives the movement and language pathways.
+2. **Define the surgical area.** The tool proposes a craniotomy window and projects the tumour onto the brain surface, where electrodes sit. The projected edge is cut into 1 cm segments.
+3. **Simulate placements.** The array is tried at many positions and angles, fitted to the curved surface. For each segment the tool checks whether it can stimulate on the edge and 8 mm outside it, and record on both sides.
+4. **Classify each segment.** Green: all tests possible. Yellow: only the edge can be tested. Red: near function but out of reach. Grey: far from the pathways, resected by imaging.
+5. **Optimise and compare.** A greedy search keeps the placements that decide the most new high-risk segments; the window is enlarged only when that clearly reduces the tumour left behind. The same plan is then run with a conventional strip in the same window.
 
-### How it works
+## Inside the software
 
-1. **Reconstruct the anatomy.** MRI and segmentation give the brain and tumour; patient-specific tractography (SlicerDMRI) gives the corticospinal tract (motor) and arcuate fasciculus (language).
-2. **Define the surgical area.** A craniotomy window is proposed, and the tumour is projected onto the cortical surface, because electrodes sit on the surface even when the tumour is deeper. The projected boundary is cut into 1 cm segments.
-3. **Simulate placements.** The array is tried at many positions and angles, fitted to the cortical surface. For each segment the tool checks whether it can stimulate on the boundary and 8 mm outside it, and record on both sides.
-4. **Classify the segments** into the four colours above.
-5. **Optimise and compare.** A greedy search keeps the placements that decide the most new high-risk segments and drops redundant ones; the window is enlarged only when that clearly reduces the estimated residual tumour. The same plan is then run with a conventional 4-contact strip in the same window.
+The results panel compares both devices for the case that was just planned, and lists every placement, every segment that could not be decided (with a suggested next step), and the time and cost of each workflow.
 
-### Same patient, same window: array vs strip
+<p align="center">
+  <img src="resources/imgs/slicer_results_card.png" alt="Plan highlights in the results panel" width="49%">
+  <img src="resources/imgs/slicer_tables.png" alt="Placement, unresolved-segment, time and cost tables" width="49%">
+</p>
+
+Same patient and same window, array vs strip:
 
 ![Array and strip placements in case 0007](resources/imgs/compare_0007.jpg)
 
-### Results on five public cases (UCSF-PDGM)
+One-click export of the case summary:
+
+![Case 0007 summary exported by the plugin](resources/imgs/slicer_compare_0007.png)
+
+## Results on five public cases (UCSF-PDGM)
 
 | Case | Placements (array / strip) | Boundary segments decided | Estimated tumour removed |
 |---|---|---|---|
@@ -67,114 +77,22 @@ INBRAIN Planner answers these questions from routine pre-operative MRI, with one
 | 0010 | **17** / 31 | **28** / 19 of 44 | **65%** / 42% |
 | 0019 | **11** / 20 | 19 / 19 of 27 | 96% / 96% |
 
-- About 40% fewer placements and about 40% less estimated mapping time with the array.
-- Estimated removal rises above the 60% linked to longer survival (RANO resect, Karschnia 2023) in 0010 and 0009; small tumours only save placements.
-- At an assumed 3,000 € per array, a case costs about 800 € more; the break-even array price is about 2,200 €.
+- Small tumours (0004, 0019) only save placements; large, infiltrating ones gain resection.
+- At an assumed 3,000 € per array, a case costs about 800 € more than with strips; the break-even array price is about 2,200 €.
 
 ![Mapping time and cost per case](resources/imgs/time_cost_5cases.png)
 
-These are planning-level simulations with assumed device, time and price parameters, not clinical measurements. Tractography is approximate, brain shift is only modelled, and the gain mixes contact density with built-in stimulation.
+## Limitations
 
-## Features
+- These are planning-level simulations, not clinical measurements.
+- Tractography is approximate, and a nerve pathway is not the same as function.
+- Brain shift during surgery is only modelled, not calibrated on real data.
+- Device layout, timings and prices are assumptions; all of them can be changed in the plugin.
+- The gain mixes two things, contact density and built-in stimulation, which are not separated.
 
-**Input → computation → output**
+## Run it yourself
 
-| | |
-|---|---|
-| Input | Case folder (T1c, FLAIR, tumour and brain segmentation, DWI + bval/bvec); device from the library or a JSON file; target, craniotomy, time and cost parameters |
-| Computation | Tensor → registration → CST/AF tractography; cortical envelope; feasible craniotomy region and entry scoring; projected resection boundary, segments and functional risk; placement scoring at every candidate position × angle (vein hinge penalty, conformity strain); greedy segment-by-segment verification; contact zoning by MRI (lesion / close / far peritumoral / healthy); same-workflow strip comparison; time (asleep CCEP + passive mapping), cost and brain-shift models |
-| Output | Bone window on a (simulated) skull; placement plan with order labels and path; plan highlights versus the conventional workflow; time and cost tables; presentation figure and PDF report |
-
-**Highlights**
-
-- One-panel workflow from a downloaded UCSF-PDGM case folder to a placement plan, with progress bars for every step.
-- **Device library** (`INBRAINPlanner/Resources/Settings/devices.json`): INBRAIN array and published specifications of commercial strips and grids; any other layout can be imported as JSON.
-- **Registration check**: FA overlaid on T1c with an opacity slider, plus an automatic verdict from tract shape (CST running up-down, AF running front-back); a manual OK / failed verdict takes priority and is saved with the case and printed in the report.
-- **Corridor view**: slices perpendicular to the surgical corridor; a depth slider shows the distance from the corridor axis to CST and AF.
-- **Brain-shift analysis**: sinking set from tumour volume, plus lateral shift in 8 directions; coverage recomputed with electrodes kept at their planned positions.
-- **Brain atlas**: registration to the Harvard-Oxford template, stimulation targets weighted by regional positive probability (Tate 2014, Sarubbo 2020), mapping tasks and tracts suggested from tumour location (Fernández Coello 2013), region of each placement.
-- **Navigation export**: entry, centre, normal, long axis and corners of every placement in RAS and LPS (`.csv`, `.fcsv`).
-- **Parameters saved in the scene**: reopening a `.mrb` restores the plan settings.
-- **View tools**: crosshair, linked views, slices in 3D, orientation marker, re-centre, layouts.
-- **Configuration files**: device library, factory display styles and regional priors in `INBRAINPlanner/Resources/Settings/`.
-- **Automated test**: self-test plus a planning regression on a sample case (Reload and Test).
-- **Cost model**: OR time, extra awake-phase cost and device cost per case, with the break-even array price.
-- Placement order labels and path, step-by-step highlighting, configurable colours and opacity, English / Chinese interface.
-
-## Getting started
-
-### Prerequisites
-
-1. Install [3D Slicer](https://download.slicer.org/) 5.x.
-2. **SlicerDMRI** and **SlicerElastix** are required. If either is missing, the module downloads and installs it in the background the first time it loads (network needed) and asks you to restart Slicer; you can also install them from the Extensions Manager yourself.
-3. Optional, only for step ⑨ (brain atlas): the `space.zip` asset of a [trajectoryGuide release](https://github.com/greydongilmore/trajectoryGuideModules/releases) (about 1.6 GB; only its `tpl-harvardoxford/` folder is used). The atlas is not bundled because its redistribution licence is not clear; it has its own licence and citation terms. Planning, scoring and export work without it.
-4. Data: a case from the [UCSF-PDGM](https://doi.org/10.7937/tcia.bdgf-8v37) dataset (TCIA) or any case with the same files.
-
-### Installation
-
-1. Clone or download this repository to a path without non-ASCII characters.
-2. Slicer → Edit → Application Settings → Modules → Additional module paths → add the `INBRAINPlanner/` folder of this repository.
-3. Restart Slicer. The module appears under **INBRAIN → INBRAIN Planner**.
-
-Keep `INBRAINPlanner/`, `INBRAINPlanner/Resources/Pipeline/` and `resources/` side by side; the module finds the algorithm and device library through relative paths.
-
-## Usage
-
-1. **Data**: choose the case folder, click **Preprocess**, then **Load scene** and **Check registration**.
-2. **Device**: pick a preset from the library or import a device JSON.
-3. **Rules and goals**: adjust target rules, craniotomy rules, coverage goals, time and cost parameters if needed.
-4. **Generate plan**: about 1–3 minutes.
-5. **Review**: plan highlights, plan table (click a row to see one placement), corridor view, brain-shift analysis.
-6. **Export**: presentation figure, PDF report, scene.
-
-Step-by-step operation of every control: [`../INBRAIN_Planner_Operation_Guide_EN.md`](../INBRAIN_Planner_Operation_Guide_EN.md). Methods and sources: [`docs/User_Guide.md`](docs/User_Guide.md). Command-line batch processing: [`docs/Run_Manual.md`](docs/Run_Manual.md).
-
-## Input data
-
-Dataset: UCSF-PDGM (TCIA, CC BY 4.0, doi:10.7937/tcia.bdgf-8v37; version 5, 2025-05-30, 142 GB): 495 pre-operative diffuse gliomas, 3 T GE Discovery 750; T1 pre/post contrast, T2, FLAIR, SWI, DWI, 3D ASL, 55-direction HARDI (with bval/bvec and clinical CSV); segmentations of enhancing, necrotic/non-enhancing and FLAIR abnormality. Dataset paper: Calabrese 2022, Radiol Artif Intell, doi:10.1148/ryai.220058. Download: https://www.cancerimagingarchive.net/collection/ucsf-pdgm/
-
-The planner is written for **UCSF-PDGM / BraTS-style** cases. Hospital data usually need preparation first.
-
-| Item | Required | Notes |
-|---|---|---|
-| T1c | yes | NIfTI, skull-stripped, ideally 1 mm isotropic |
-| Tumour segmentation | yes | BraTS labels on the T1c grid: 1 necrosis, 2 oedema/FLAIR, 4 enhancing (BraTS ≤ 2021) or 3 (BraTS 2023+) |
-| Brain segmentation | yes | brain mask on the T1c grid |
-| FLAIR | yes | used for the optional FLAIR boundary |
-| DWI + bval/bvec | for tracts | any shell and direction count supported by SlicerDMRI; without DWI there are no CST/AF tracts |
-| SWI | optional | surface-vein avoidance |
-
-File names are matched by suffix (`_T1c_bias.nii.gz` or `_T1c.nii.gz`, `_tumor_segmentation.nii.gz`, …). **Load** checks the inputs and stops with a message when the tumour labels contain no core, a mask is empty, or warns when grids differ, voxels are coarse or the skull seems not removed.
-
-Not yet supported (planned input adapter): DICOM import and series matching, skull stripping, registration of all series to T1c, automatic tumour segmentation, atlas tracts when DWI is missing.
-
-## Repository layout
-
-```
-INBRAIN_Planner/
-├── CMakeLists.txt                  extension definition (metadata, dependencies)
-├── INBRAINPlanner.png              extension icon
-├── LICENSE, README.md, CHANGELOG.md
-├── INBRAINPlanner/                 Slicer module
-│   ├── CMakeLists.txt              installs the script and everything under Resources/
-│   ├── INBRAINPlanner.py           interface (widget) and self-test
-│   ├── INBRAINPlannerLib/          i18n.py (language), config.py (parameters, presets, styles, theme), logic.py (GUI-independent logic)
-│   └── Resources/
-│       ├── Icons/
-│       ├── Pipeline/               planning core and preprocessing scripts
-│       │   ├── slicer_placement_score.py   boundary segmentation, placement scoring, segment-by-segment verification, strip comparison
-│       │   ├── time_model.py               awake / asleep time formulas (shared with the sensitivity script)
-│       │   ├── s0_flip.py … s2_tract.py    preprocessing (gradient flip, tensor, registration, tracts)
-│       │   └── run_case.sh, s3–s7          command-line batch figures and tables
-│       ├── Settings/               devices.json, styles.json, eloquence.json
-│       └── ExtLibs/                brain-atlas template (not in the repository, see below)
-├── resources/imgs/                 README icon and screenshot
-└── docs/                           User_Guide.md, Run_Manual.md
-```
-
-The brain-atlas step (optional) needs the Harvard-Oxford template folder `tpl-harvardoxford` (TemplateFlow layout). Unzip `space.zip`, then either put the folder in `INBRAINPlanner/Resources/ExtLibs/space/` or choose its parent `space` folder in ⑨. Only the template (`templates/*_T1w.nii.gz`) and the two segmentation files (`segmentations/*label-cort*` and `*label-sub*`) are read.
-
-No patient data, templates or third-party binaries are included.
+Download the latest plugin from [Releases](https://github.com/Vive1Amour/inbrain-planner/releases/latest), then follow [Installation and usage](docs/Installation.md). It needs 3D Slicer 5.x with the SlicerDMRI and SlicerElastix extensions (installed automatically when missing) and a UCSF-PDGM case folder.
 
 ## Roadmap
 
@@ -197,8 +115,11 @@ For pre-operative planning support and research only; not a medical device. It d
 * Planning approach adapted from automatic SEEG multi-trajectory planning (Sparks et al., *Int J CARS* 2017; Vakharia et al. 2020).
 * Data: UCSF-PDGM (Calabrese et al., *Radiology: AI* 2022), via The Cancer Imaging Archive.
 * Commercial strip specifications from Rabbani et al. 2026 (ALIGNER); the first-in-human device layout from Coope et al. 2025 (NCT06368310).
-* Author: Zelong Gan.
 
 ## Disclaimer
 
 This is an independent research prototype. It is not affiliated with, endorsed by or supported by INBRAIN Neuroelectronics. "INBRAIN" is used only to name the device family the tool plans for. Device geometries in the presets are assumed, illustrative values and are not official specifications. Time and cost figures come from a model with assumed parameters; they are not clinical results.
+
+## Author
+
+Zelong Gan, Universitat Pompeu Fabra.
