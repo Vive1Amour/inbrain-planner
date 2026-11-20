@@ -5,7 +5,7 @@
 
   # 1. 从 metadata 选 GBM（WHO 4 级、胶质母细胞瘤），去掉 _FU 随访扫描，随机抽 50 例
   python inbrain_batch.py select --data /path/to/UCSF-PDGM --n 50 --out cases.txt
-  # 2. 默认参数跑一遍（含预处理；缓存在 ~/.inbrain_planner/w<病例>，已有纤维束的跳过预处理）
+  # 2. 默认参数跑一遍（含预处理；缓存在系统临时目录 inbrain_planner/w<病例>，已有纤维束的跳过预处理）
   python inbrain_batch.py run --cases cases.txt --out runs.jsonl --jobs 2
   #    改参数：--set PITCH=3 --extra ANGLE_MODE=tangent  （--set 是界面参数，--extra 是规划脚本变量）
   # 3. 参数校准：网格里每组参数在所有病例上跑一遍（只规划，不重复预处理）
@@ -59,7 +59,7 @@ def cmd_select(a):
     random.Random(a.seed).shuffle(dirs)
     pick = dirs[:a.n] if a.n else dirs
     if a.eor:   # 按切除程度分层，例如 GTR:25,STR:25；已预处理过的病例优先（省时间）
-        eor = read_eor(a.data); cache = os.path.expanduser("~/.inbrain_planner")
+        eor = read_eor(a.data); import tempfile; cache = os.environ.get("INBRAIN_CACHE") or os.path.join(tempfile.gettempdir(), "inbrain_planner")
         cached = lambda d: os.path.exists(os.path.join(cache, "w" + case_id(d), case_id(d) + "_tract_AF.vtk"))
         pick = []
         for part in a.eor.split(","):

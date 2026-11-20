@@ -333,7 +333,18 @@ class INBRAINPlannerLogic(ScriptedLoadableModuleLogic):
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
             exec(compile(src, "slicer_placement_score.py", "exec"), g)
+        self._last_ns = g
         return g, buf.getvalue()
+
+    def _redraw(self, ns):
+        """Every trial run draws its arrays and boundary into the scene; if the kept run is not the last trial, redraw it so the 3D view matches the results"""
+        if ns is None or ns is getattr(self, "_last_ns", None) or not ns.get("SHOW", True): return
+        src = open(os.path.join(SCRIPTS, "slicer_placement_score.py"), encoding="utf-8").read()
+        a, b = src.find("# ================= 8 "), src.find("# ================= 9 ")
+        if a < 0 or b < 0: return
+        with contextlib.redirect_stdout(io.StringIO()):
+            exec(compile(src[a:b], "slicer_placement_score.py#draw", "exec"), ns)
+        self._last_ns = ns
 
     def plan(self, D, case, overrides, cb=None):
         """跑规划核心；返回 (全局变量字典, 控制台输出)。
@@ -343,6 +354,36 @@ class INBRAINPlannerLogic(ScriptedLoadableModuleLogic):
         fit = overrides.get("WIN_FIT", True)
         sub = (lambda a, b: (lambda fr, tx: cb(a + (b - a)*fr, tx))) if cb else (lambda a, b: None)
         g, out = self._exec_plan(overrides, sub(0.0, 0.4) if fit else cb)
+        # ---- entry search (automatic entry only, no manual point needed): the entry score ignores the final residual, so also plan the
+        #      best few alternative entries (>= ENTRY_GAP mm apart) and keep the one with the lowest FLAIR residual, if it is clearly better
+        #      (residual lower by >= max(2 mL, 3 %), and no more than one decided segment lost)
+        _entry_info = None
+        _nce0 = lambda gg: (((gg.get("BND") or {}).get("nce") or {}).get("res_inb"))
+        if (overrides.get("ENTRY_SEARCH", True) and int(overrides.get("ENTRY_ALT", 3)) > 0 and overrides.get("ENTRY_MODE", "auto") == "auto" and g.get("PLAN") and g.get("ENTRY_MAP")
+                and _nce0(g) is not None and slicer.mrmlScene.GetFirstNodeByName(overrides.get("ENTRY_NAME", "Entry")) is None):
+            import numpy as _np
+            gap = float(overrides.get("ENTRY_GAP", 30.0)); nalt = int(overrides.get("ENTRY_ALT", 3))
+            pts = _np.asarray(g["ENTRY_MAP"]["points"]); sc = _np.asarray(g["ENTRY_MAP"]["score"]); picked = [_np.asarray(g["entry"], float)]
+            for ii in _np.argsort(-sc):
+                if len(picked) > nalt: break
+                if all(_np.linalg.norm(pts[ii] - q) >= gap for q in picked): picked.append(pts[ii])
+            elog = [L(f"入口比较：自动入口 残留 {_nce0(g):.1f} mL，可分离 {g['BND']['full']} 段，放置 {len(g['PLAN'])} 次",
+                      f"Entry search: automatic entry residual {_nce0(g):.1f} mL, {g['BND']['full']} segments decided, {len(g['PLAN'])} placements")]
+            best_e = (g, out); r_best = _nce0(g)
+            for k_, p_ in enumerate(picked[1:], start=1):
+                node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "_EntryTry")
+                node.AddControlPointWorld(vtk.vtkVector3d(*p_)); node.GetDisplayNode().SetVisibility(False)
+                try: g2, out2 = self._exec_plan(dict(overrides, ENTRY_NAME="_EntryTry"), None)
+                except Exception as e: elog.append(f"  alt {k_}: {e}"); continue
+                finally: slicer.mrmlScene.RemoveNode(node)
+                r2 = _nce0(g2)
+                if r2 is None or not g2.get("PLAN"): continue
+                elog.append(L(f"  备选入口 {k_}：残留 {r2:.1f} mL，可分离 {g2['BND']['full']} 段，放置 {len(g2['PLAN'])} 次",
+                              f"  alternative entry {k_}: residual {r2:.1f} mL, {g2['BND']['full']} segments decided, {len(g2['PLAN'])} placements"))
+                if r2 < r_best - max(2.0, 0.03*r_best) and g2["BND"]["full"] >= g["BND"]["full"] - 1: best_e = (g2, out2); r_best = r2
+            if best_e[0] is not g: elog.append(L(f"  采用残留最低的入口（{r_best:.1f} mL）", f"  kept the entry with the lowest residual ({r_best:.1f} mL)"))
+            else: elog.append(L("  自动入口已是最好的，保留", "  the automatic entry is the best, kept"))
+            g, out = best_e; _entry_info = dict(log=elog); g["ENTRY_SEARCH_INFO"] = _entry_info; out = out + "\n" + "\n".join(elog)
         # ---- Window shape and angle from the tumour projection (non-round windows): long axis along the projection's main direction,
         #      aspect from the projection; rounded rectangle when the projection fills its box, otherwise oval; area kept (growth and
         #      fitting adjust it later); entry moved to the projection centre. Kept only if separable segments do not drop
@@ -353,38 +394,58 @@ class INBRAINPlannerLogic(ScriptedLoadableModuleLogic):
         # ---- Target-driven window growth: if the estimated FLAIR residual of the INBRAIN workflow is above target (5 cm3), keep the entry and
         #      enlarge the window step by step; stop at the target, when one more step gains less than NCE_STEP_MIN mL, or at WIN_R_LIMIT
         nce = lambda gg: (((gg.get("BND") or {}).get("nce") or {}).get("res_inb"))
-        if overrides.get("NCE_TARGET", True) and g.get("PLAN") and nce(g) is not None and nce(g) > g.get("NCE_THR", 5.0):
-            lim = float(overrides.get("WIN_R_LIMIT", 50.0)); stepmin = float(overrides.get("NCE_STEP_MIN", 2.0)); cur = {}
-            glog = [L(f"FLAIR 残留估计 {nce(g):.1f} mL > 目标 {g.get('NCE_THR', 5.0):g}：试着扩大骨窗（上限半径 {lim:g} mm）",
-                      f"FLAIR residual {nce(g):.1f} mL > target {g.get('NCE_THR', 5.0):g}: enlarging the window (radius limit {lim:g} mm)")]
-            for k in range(4):
+        win_area = lambda gg: float(gg["WIN_CHECK"]["area_cm2"])
+        # RANO resect (Karschnia 2023): removing > 60 % of the non-enhancing tumour OR leaving <= 5 cm3 each goes with a survival benefit, both together
+        # with the longest survival. Enlargement is tried until BOTH are met (or it stops paying off); for very large FLAIR volumes 60 % is the realistic goal.
+        _tot = lambda gg: (((gg.get("BND") or {}).get("nce") or {}).get("total")) or 0.0
+        pct = lambda gg: (100.0*(1.0 - nce(gg)/_tot(gg)) if (nce(gg) is not None and _tot(gg) > 0) else 100.0)
+        pct_goal = float(overrides.get("NCE_PCT", 60.0))
+        if overrides.get("NCE_TARGET", True) and g.get("PLAN") and nce(g) is not None and (nce(g) > float(overrides.get("NCE_TRIGGER", g.get("NCE_THR", 5.0))) or pct(g) < pct_goal):
+            # Sweet-spot enlargement: from the first plan, enlarge the window step by step (same entry) and keep a step only if it
+            # pays off against the last KEPT window: residual falls by >= NCE_STEP_MIN mL AND by >= NCE_EFF mL per extra 10 cm2.
+            # One inefficient step is allowed (the curve can be flat before it drops, e.g. a lobe that only comes into view later);
+            # two in a row stop the search. Also stops at the target (NCE_THR), the area cap (circle of radius WIN_R_LIMIT) or an excluded zone.
+            import math
+            lim = float(overrides.get("WIN_R_LIMIT", 45.0)); cap = math.pi*lim*lim/100.0       # area cap in cm2
+            stepmin = float(overrides.get("NCE_STEP_MIN", 3.0)); eff_min = float(overrides.get("NCE_EFF", 2.0))
+            thr = g.get("NCE_THR", 5.0); cur = {}; tcur = {}; miss = 0
+            trace = [dict(area=win_area(g), res=nce(g), eff=None, kept=True)]
+            glog = [L(f"FLAIR 残留估计 {nce(g):.1f} mL（切除 {pct(g):.0f}%），未同时达到 ≤ 5 mL 和切除 > {pct_goal:g}%；触发值 {float(overrides.get('NCE_TRIGGER', thr)):g}：试着扩大骨窗（面积上限 {cap:.0f} cm²，每多开 10 cm² 至少少 {eff_min:g} mL，每步至少少 {stepmin:g} mL）",
+                      f"FLAIR residual {nce(g):.1f} mL ({pct(g):.0f}% removed), not yet both <= 5 mL and > {pct_goal:g}% removed; trigger {float(overrides.get('NCE_TRIGGER', thr)):g}: enlarging the window (area cap {cap:.0f} cm², at least {eff_min:g} mL per extra 10 cm², at least {stepmin:g} mL per step)")]
+            for k in range(6):
                 if g["WIN_SHAPE"] == "circle":
-                    R = float(cur.get("WINDOW_R", overrides.get("WINDOW_R", g.get("WINDOW_R", 35.0)))) + 5.0
-                    if R > lim + 1e-6: break
+                    R = float(tcur.get("WINDOW_R", overrides.get("WINDOW_R", g.get("WINDOW_R", 35.0)))) * 1.10
+                    if math.pi*R*R/100.0 > cap + 1e-6: break
                     nw = dict(WINDOW_R=R)
                 else:
-                    Lw, Ww = float(cur.get("WIN_LEN", overrides.get("WIN_LEN", g.get("WIN_LEN", 80.0)))), float(cur.get("WIN_WID", overrides.get("WIN_WID", g.get("WIN_WID", 60.0))))
-                    if max(Lw, Ww)*1.15/2 > lim + 1e-6: break
-                    nw = dict(WIN_LEN=Lw*1.15, WIN_WID=Ww*1.15)
+                    Lw, Ww = float(tcur.get("WIN_LEN", overrides.get("WIN_LEN", g.get("WIN_LEN", 80.0)))), float(tcur.get("WIN_WID", overrides.get("WIN_WID", g.get("WIN_WID", 60.0))))
+                    if math.pi/4.0*(Lw*1.10)*(Ww*1.10)/100.0 > cap + 1e-6: break
+                    nw = dict(WIN_LEN=Lw*1.10, WIN_WID=Ww*1.10)
                 node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "_WinGrowEntry")
                 node.AddControlPointWorld(vtk.vtkVector3d(*g["entry"])); node.GetDisplayNode().SetVisibility(False)
-                try: g2, out2 = self._exec_plan(dict(overrides, ENTRY_NAME="_WinGrowEntry", **dict(cur, **nw)), None)
+                try: g2, out2 = self._exec_plan(dict(overrides, ENTRY_NAME="_WinGrowEntry", **dict(tcur, **nw)), None)
                 finally: slicer.mrmlScene.RemoveNode(node)
-                r1, r2 = nce(g), nce(g2)
-                ok = r2 is not None and r2 < r1 - stepmin
+                tcur.update(nw)
+                r1, r2 = nce(g), nce(g2)                       # compared with the last kept window
+                a1, a2 = win_area(g), win_area(g2)
+                gain = (r1 - r2) if r2 is not None else 0.0
+                eff = gain / max((a2 - a1)/10.0, 0.1)
+                ok = r2 is not None and gain >= stepmin - 1e-9 and eff >= eff_min - 1e-9
                 c1, c2 = g["WIN_CHECK"], g2["WIN_CHECK"]
                 bad = [k for k in ("contra", "base", "post") if c2.get(k) and not c1.get(k)]
                 if c2.get("mid_mm", 99) < float(overrides.get("MIDLINE_EX", 12.0)) and c2.get("mid_mm", 99) < c1.get("mid_mm", 99) - 0.5: bad.append("mid")
-                if bad:   # 扩大后骨窗边缘碰到禁区（对侧、颅底、横窦一带、中线旁）就不扩
-                    ok = False; r2 = r2 if r2 is not None else float("nan")
+                if bad:   # the larger window would reach an excluded zone (contralateral, skull base, transverse sinus, midline): stop
                     glog.append(L("  再扩会碰到禁区（" + "、".join({"contra": "对侧", "base": "颅底", "post": "后下部/横窦", "mid": "中线旁"}[k] for k in bad) + "），停止",
                                   "  enlarging would reach an excluded zone (" + ", ".join(bad) + "), stop")); break
-                glog.append(L(f"  {g2['WIN_CHECK']['area_cm2']:.0f} cm²：残留 {r2:.1f} mL，{'采用' if ok else '减少不到 ' + format(stepmin, 'g') + ' mL，停止'}",
-                              f"  {g2['WIN_CHECK']['area_cm2']:.0f} cm²: residual {r2:.1f} mL, {'kept' if ok else 'gain below ' + format(stepmin, 'g') + ' mL, stop'}"))
-                if not ok: break
-                g, out = g2, out2; cur.update(nw)
-                if r2 <= g.get("NCE_THR", 5.0): break
-            g["NCE_GROW_INFO"] = dict(log=glog, params=cur)
+                trace.append(dict(area=a2, res=r2, eff=round(eff, 2), kept=bool(ok)))
+                miss = 0 if ok else miss + 1
+                glog.append(L(f"  {a2:.0f} cm²：残留 {r2:.1f} mL（比上一个采用的少 {gain:.1f} mL，每 10 cm² 少 {eff:.1f} mL），{'采用' if ok else ('收益不够，再试一步' if miss < 2 else '连续两步收益不够，停止')}",
+                              f"  {a2:.0f} cm²: residual {r2:.1f} mL (-{gain:.1f} mL vs the last kept window, {eff:.1f} mL per 10 cm²), {'kept' if ok else ('not efficient enough, trying one more step' if miss < 2 else 'two inefficient steps in a row, stop')}"))
+                if ok:
+                    g, out = g2, out2; cur = dict(tcur)
+                    if r2 <= thr and pct(g) >= pct_goal: break      # both RANO criteria met
+                elif miss >= 2: break
+            g["NCE_GROW_INFO"] = dict(log=glog, params=cur, trace=trace)
             overrides = dict(overrides, ENTRY_NAME="_WinGrowEntry2", **cur) if cur else overrides
             if cur:
                 node = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLMarkupsFiducialNode", "_WinGrowEntry2")
@@ -393,6 +454,7 @@ class INBRAINPlannerLogic(ScriptedLoadableModuleLogic):
         if not fit or not g.get("PLAN"):
             for _n in ("_WinGrowEntry2", "_WinShapeEntry"):
                 if slicer.mrmlScene.GetFirstNodeByName(_n): slicer.mrmlScene.RemoveNode(slicer.mrmlScene.GetFirstNodeByName(_n))
+            if _entry_info: g["ENTRY_SEARCH_INFO"] = _entry_info
             return g, out
         f0, a0 = g["BND"]["full"], g["WIN_CHECK"]["area_cm2"]; best, best_out = g, out
         log = [L(f"先评分再定骨窗（定制骨窗：以肿瘤为中心，投影外留 EXPOSE_MIN，按阵列收紧）：第 1 遍 {a0:.0f} cm²，判定段 {f0}", f"Score-then-fit window: pass 1 {a0:.0f} cm², {f0} segments decided")]
@@ -419,6 +481,8 @@ class INBRAINPlannerLogic(ScriptedLoadableModuleLogic):
             if _k in g and best is not g: best[_k] = g[_k]
         if best is not g:
             best["WIN_FIT_INFO"] = dict(area0=a0, area=best["WIN_CHECK"]["area_cm2"], full0=f0, full=best["BND"]["full"], n0=len(g["PLAN"]), n=len(best["PLAN"]))
+        if _entry_info: best["ENTRY_SEARCH_INFO"] = _entry_info
+        self._redraw(best)
         return best, best_out + "\n" + "\n".join(log)
 
     def auto_shape(self, g, out, overrides):

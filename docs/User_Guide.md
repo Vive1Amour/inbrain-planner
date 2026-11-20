@@ -22,7 +22,7 @@ This English edition opens in English by default. The **Language** menu at the t
 
 **① Data (downloaded case folder)**
 - Case folder: choose `UCSF-PDGM-XXXX_nifti`; the case ID fills in automatically.
-- **Output location**: by default the folder containing the case folder (or its `分析` subfolder if present); can be changed. Results go into `<case folder without _nifti>_Slicer` there, e.g. `分析/UCSF-PDGM-0007_Slicer`: preprocessing results, tracts, scene, figure, web 3D, report, navigation files and bookmarks. Slicer command-line modules need ASCII paths, so computation runs in the hidden `~/.inbrain_planner/w<case>` and is copied over automatically; if the cache is deleted it is restored from the result folder without preprocessing again.
+- **Output location**: by default the folder containing the case folder (or its `分析` subfolder if present); can be changed. Results go into `<case folder without _nifti>_Slicer` there, e.g. `分析/UCSF-PDGM-0007_Slicer`: preprocessing results, tracts, scene, figure, web 3D, report, navigation files and bookmarks. Slicer command-line modules need ASCII paths, so computation runs in `inbrain_planner/w<case>` in the system temp folder (deleted when Slicer quits) and is copied over automatically; if the cache is deleted it is restored from the result folder without preprocessing again.
 - Tumour side: Auto-detect (by which side of the midline the tumour core lies), or set manually.
 - Gradient flip: choose Auto-detect for a new case (about 10 extra minutes); UCSF-PDGM is usually z.
 - Tract parameters: seed FA and stopping FA for CST and AF.
@@ -80,7 +80,7 @@ From v0.3 these points no longer drive placement (planning uses boundary segment
 **⑥ Intra-operative time parameters**: placement, language/motor sites, probe and array overheads, task recording, high gamma, CCEP, awake window, etc.; adjust to your local workflow.
 - **Passive mapping asleep** (on by default): each array gets CCEP + passive auditory-task high-γ recording under anaesthesia (Swift 2018: sensitivity 0.95, specificity 0.59); awake, only arrays with suspicious contacts are revisited and stimulated.
 - **Strip contacts / strip pitch** (default 4 / 10 mm): the 1×N commercial strip of the conventional workflow, planned with the same boundary workflow as INBRAIN.
-- **After-discharge monitoring strip in the conventional workflow** (on by default): probe stimulation needs a separate ECoG strip next to it (reference material p5), placed once asleep and moved for every new awake region, plus one more strip in device cost. The INBRAIN array monitors itself.
+- **After-discharge monitoring strip in the conventional workflow** (on by default): probe stimulation needs a separate ECoG strip next to it (reference material), placed once asleep and moved for every new awake region, plus one more strip in device cost. The INBRAIN array monitors itself.
 - Every parameter has a tooltip in both languages with its source.
 
 **Generate plan**: about 1–3 minutes. **Save parameters / Load parameters** store the whole parameter set as JSON for reproducing and comparing runs.

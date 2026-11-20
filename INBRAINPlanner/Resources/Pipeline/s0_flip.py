@@ -14,14 +14,26 @@ try:
     R = A / np.linalg.norm(A, axis=0)
     bv0 = np.loadtxt(D + CASE + "_DWI.bvec"); bval = np.loadtxt(D + CASE + "_DWI.bval")
     if np.linalg.det(A) > 0: bv0[0] *= -1
-    data = np.ascontiguousarray(np.moveaxis(arr, 0, -1)).astype(np.float32)
+    data = np.moveaxis(arr, 0, -1)
+    # fast mode: use only a central block of the brain (corpus callosum, internal capsule/brainstem and cingulum are all inside, so all three main fibre directions are present); about 1/8 of whole-brain tracking
+    org = None
+    if os.environ.get("FLIP_FULL") != "1":
+        b0 = data[..., 0]; idx = np.argwhere(b0 > 0.2 * np.percentile(b0, 99))
+        lo, hi = idx.min(0), idx.max(0) + 1; c = (lo + hi) // 2; h = np.maximum((hi - lo) // 4, 8)
+        k0, j0, i0 = np.maximum(c - h, 0); k1, j1, i1 = np.minimum(c + h, b0.shape)
+        data = data[k0:k1, j0:j1, i0:i1]
+        org = (m.MultiplyPoint([float(i0), float(j0), float(k0), 1.0]))[:3]
+        log("crop", data.shape[:3], "of", b0.shape)
+    data = np.ascontiguousarray(data).astype(np.float32)
     # seeds: high-FA voxels (found with the unflipped result first)
     res = {}
     for flip in ["none", "x", "y", "z"]:
         g = (R @ bv0).T.copy()
         if flip != "none": g[:, "xyz".index(flip)] *= -1
         dwi = slicer.mrmlScene.AddNewNodeByClass("vtkMRMLDiffusionWeightedVolumeNode", "DWI_" + flip)
-        dwi.CopyOrientation(ref); slicer.util.updateVolumeFromArray(dwi, data)
+        dwi.CopyOrientation(ref)
+        if org is not None: dwi.SetOrigin(*org)
+        slicer.util.updateVolumeFromArray(dwi, data)
         ga = vtk.vtkDoubleArray(); ga.SetNumberOfComponents(3)
         for q in g: ga.InsertNextTuple3(*q)
         ba = vtk.vtkDoubleArray()

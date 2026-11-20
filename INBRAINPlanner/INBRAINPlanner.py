@@ -16,6 +16,31 @@ from INBRAINPlannerLib.logic import INBRAINPlannerLogic
 from INBRAINPlannerLib.deps import ensure_dependencies     # 缺 SlicerDMRI / SlicerElastix 时自动下载安装
 REG_MIN_TRACTS = 20     # 自动配准判定：CST 和 AF 都至少这么多条才算正常
 
+def tract_shape(pd):
+    """Tract course: share of path length along each axis (L-R, A-P, S-I) and the median vertical extent per fibre, mm"""
+    import numpy as np
+    from vtk.util.numpy_support import vtk_to_numpy
+    if pd is None or pd.GetNumberOfLines() == 0: return None
+    P = vtk_to_numpy(pd.GetPoints().GetData()).astype(float); L = pd.GetLines(); L.InitTraversal(); ids = vtk.vtkIdList(); acc = np.zeros(3); ext = []
+    while L.GetNextCell(ids):
+        q = P[[ids.GetId(i) for i in range(ids.GetNumberOfIds())]]
+        if len(q) < 2: continue
+        acc += np.abs(np.diff(q, axis=0)).sum(0); ext.append(float(np.ptp(q[:, 2])))
+    if acc.sum() == 0: return None
+    return dict(frac=acc / acc.sum(), zext=float(np.median(ext)))
+
+# Shape thresholds: in the local cases the CST vertical share is 0.47–0.66 with a 67–93 mm extent; the AF A-P share is 0.38–0.48 and L-R ≤ 0.27. A wrong gradient flip or misregistration moves these clearly away
+SHAPE_CST_Z, SHAPE_CST_EXT, SHAPE_AF_Y, SHAPE_AF_X = 0.40, 40.0, 0.30, 0.40
+
+def shape_problems(shp):
+    out = []
+    c, a = shp.get("CST"), shp.get("AF")
+    if c and (c["frac"][2] < SHAPE_CST_Z or c["zext"] < SHAPE_CST_EXT):
+        out.append((f"CST 不像上下走向（上下占比 {c['frac'][2]:.2f}，跨度 {c['zext']:.0f} mm）", f"CST not running up-down (vertical share {c['frac'][2]:.2f}, extent {c['zext']:.0f} mm)"))
+    if a and (a["frac"][1] < SHAPE_AF_Y or a["frac"][0] > SHAPE_AF_X):
+        out.append((f"AF 不像前后走向（前后占比 {a['frac'][1]:.2f}，左右 {a['frac'][0]:.2f}）", f"AF not running front-back (A-P share {a['frac'][1]:.2f}, L-R {a['frac'][0]:.2f})"))
+    return out
+
 
 class INBRAINPlanner(ScriptedLoadableModule):
     def __init__(self, parent):
@@ -39,6 +64,8 @@ class INBRAINPlannerWidget(ScriptedLoadableModuleWidget):
         ScriptedLoadableModuleWidget.setup(self)
         ensure_dependencies()                               # 打开模块时再检查一次（每个会话只提示一次）
         self.logic = INBRAINPlannerLogic(); self.w = {}; self.device_json = None; self.G = None
+        try: slicer.app.connect("aboutToQuit()", lambda: self.clean_cache())   # leave no working cache behind
+        except Exception: pass
         self.proc = None; self.queue = []
         L = self.layout
         try:
@@ -164,8 +191,8 @@ class INBRAINPlannerWidget(ScriptedLoadableModuleWidget):
         self.autoSkull = qt.QCheckBox(T("生成方案后自动生成颅骨并开出骨窗")); self.autoSkull.checked = True; f.addRow(self.autoSkull)
         self.winFit = qt.QCheckBox(T("先评分再定骨窗（按选定放置调整骨窗位置和大小）")); self.winFit.checked = True
         self.winFit.setToolTip(T("上面的骨窗尺寸当作最大可开范围：先在里面选放置，再找能放下这些阵列和肿瘤投影的最小骨窗，重跑一遍；判定段不减少、放置次数不增加才采用")); f.addRow(self.winFit)
-        self.nceTarget = qt.QCheckBox(INBRAINPlannerLib.i18n.L("FLAIR 残留未达标（> 5 cm³）时自动扩大骨窗", "Enlarge the window when the FLAIR residual is above 5 cm³")); self.nceTarget.checked = True
-        self.nceTarget.setToolTip(INBRAINPlannerLib.i18n.L("入口不动，每次半径加 5 mm 重新规划；残留降到 5 cm³ 以下、或再扩一步减少不到“扩窗最小收益”、或到“扩窗上限半径”就停", "Same entry, radius +5 mm per step; stops below 5 cm³, when a step gains less than the minimum gain, or at the radius limit"))
+        self.nceTarget = qt.QCheckBox(INBRAINPlannerLib.i18n.L("FLAIR 残留偏高时按性价比扩大骨窗（找甜点）", "Enlarge the window while it pays off (sweet spot) when the FLAIR residual is high")); self.nceTarget.checked = True
+        self.nceTarget.setToolTip(INBRAINPlannerLib.i18n.L("残留高于“扩窗触发残留”才扩。入口不动，每步骨窗长宽各加 10%（面积约加 21%）重新规划；每步残留少于“每步最小收益”、或每多开 10 cm² 少于“每多开 10 cm² 至少少 mL”就停在上一步，这一步就是甜点；也在残留降到 5 cm³ 以下、到面积上限、碰到禁区时停", "Only starts when the residual is above the enlargement trigger. Same entry; each step grows the window length and width by 10% (about +21% area) and replans. It stops at the previous step when a step gains less than the minimum gain, or less than the required mL per extra 10 cm²: that step is the sweet spot. It also stops below 5 cm³, at the area cap, or at an excluded zone"))
         f.addRow(self.nceTarget)
         self.autoShape = qt.QCheckBox(INBRAINPlannerLib.i18n.L("按肿瘤投影自动选骨窗形状和角度（非圆形时）", "Choose window shape and angle from the tumour projection (non-round)")); self.autoShape.checked = True
         self.autoShape.setToolTip(INBRAINPlannerLib.i18n.L("长轴对齐肿瘤投影的主方向，长宽比按投影；投影接近矩形用圆角矩形，否则卵圆；可分离段不减少才采用", "Long axis along the tumour projection, aspect from the projection; rounded rectangle when the projection fills its box, otherwise oval; kept only if separable segments do not drop"))
@@ -479,9 +506,11 @@ class INBRAINPlannerWidget(ScriptedLoadableModuleWidget):
         if rs and "自动" not in rs and "auto" not in rs: return rs                    # 人工结论优先
         nl = {n.GetName()[6:]: (n.GetPolyData().GetNumberOfLines() if n.GetPolyData() else 0) for n in slicer.util.getNodesByClass("vtkMRMLModelNode") if n.GetName().startswith("tract_")}
         cst, af = nl.get("CST", 0), nl.get("AF", 0); ok = cst >= REG_MIN_TRACTS and af >= REG_MIN_TRACTS
+        shp = {n.GetName()[6:]: tract_shape(n.GetPolyData()) for n in slicer.util.getNodesByClass("vtkMRMLModelNode") if n.GetName()[6:] in ("CST", "AF") and n.GetName().startswith("tract_")}
+        bad = shape_problems(shp); ok = ok and not bad
         try:
             case, work, D = self.case_paths()
-            open(os.path.join(D, "registration_check.txt"), "w", encoding="utf-8").write(("pass" if ok else "fail") + INBRAINPlannerLib.i18n.L(f"（自动：纤维束 CST {cst}、AF {af}）", f" (auto: tracts CST {cst}, AF {af})"))
+            open(os.path.join(D, "registration_check.txt"), "w", encoding="utf-8").write(("pass" if ok else "fail") + INBRAINPlannerLib.i18n.L(f"（自动：纤维束 CST {cst}、AF {af}" + ("；" + "；".join(b[0] for b in bad) if bad else "") + "）", f" (auto: tracts CST {cst}, AF {af}" + ("; " + "; ".join(b[1] for b in bad) if bad else "") + ")"))
         except Exception as e: self.say("reg auto:", e)
         self.quickReg.visible = not ok
         return self.reg_status()
@@ -648,11 +677,37 @@ class INBRAINPlannerWidget(ScriptedLoadableModuleWidget):
         case = self.caseName.text.strip(); work = CACHE_DIR
         if not case: raise RuntimeError(L("先选病例文件夹或填病例编号", "Choose a case folder or enter a case ID first"))
         D = os.path.join(work, "w" + case)
+        self.clean_cache(keep=D)                                    # only the current case stays in the working cache
         out = self.result_dir()
+        if out: self.__dict__.setdefault("_out_for", {})[os.path.normpath(D)] = out
         if out and os.path.isdir(out) and not os.path.isdir(D):    # 缓存清掉了但结果文件夹还在：拷回来接着用，不用重新预处理
             import shutil
             shutil.copytree(out, D)
         return case, work, D
+
+    def clean_cache(self, keep=None):
+        """Remove working-cache folders (all of them, or all but `keep`); the results stay in the result folder"""
+        import shutil
+        if not os.path.isdir(CACHE_DIR): return
+        for n in os.listdir(CACHE_DIR):
+            p = os.path.join(CACHE_DIR, n)
+            if keep and os.path.normpath(p) == os.path.normpath(keep): continue
+            if os.path.isdir(p) and n.startswith("w"):
+                try: self.sync_out_dir(p)
+                except Exception: pass
+                shutil.rmtree(p, ignore_errors=True)
+        if not keep:
+            try: os.rmdir(CACHE_DIR)
+            except OSError: pass
+
+    def sync_out_dir(self, D):
+        """Before deleting a cache folder of another case, make sure nothing new is lost: copy files missing from its result folder"""
+        import shutil
+        out = getattr(self, "_out_for", {}).get(os.path.normpath(D))
+        if not out or not os.path.isdir(out): return
+        for n in os.listdir(D):
+            a, b = os.path.join(D, n), os.path.join(out, n)
+            if os.path.isfile(a) and (not os.path.exists(b) or os.path.getmtime(a) > os.path.getmtime(b) + 1): shutil.copy2(a, b)
 
     def set_af_weight(self, side):
         """左侧（通常语言优势侧）AF 权重 1，右侧 0.5；侧别改了就跟着改"""
@@ -1409,6 +1464,26 @@ class INBRAINPlannerWidget(ScriptedLoadableModuleWidget):
                     L("配准检查：", "Registration check: ") + ((L("通过", "OK") + rs[4:].split(" 20")[0]) if rs.startswith("pass") else ((L("不通过", "failed") + rs[4:].split(" 20")[0] + L("，在快速开始里点“看配准图”确认，或重做预处理", "; use “Show overlay” in Quick start or preprocess again")) if rs else L("未进行（点“一键规划”会自动判定）", "not done (“Plan in one click” checks it automatically)")))))
         nl = {n.GetName()[6:]: (n.GetPolyData().GetNumberOfLines() if n.GetPolyData() else 0) for n in slicer.util.getNodesByClass("vtkMRMLModelNode") if n.GetName().startswith("tract_")}
         out.append(("bad" if not nl or min(nl.values()) == 0 else "ok", L("纤维束：", "Tracts: ") + (", ".join(f"{k} {v}" for k, v in sorted(nl.items())) or "0")))
+        NN = (G.get("BND") or {}).get("nce") or {}
+        if NN.get("total") and NN.get("pct_inb") is not None:
+            pg = self.val("NCE_PCT"); th = NN.get("thr", 5.0)
+            def _rano(res, pc):
+                a, b = res <= th, pc > pg
+                return 2 if (a and b) else (1 if (a or b) else 0)
+            ri, rs = _rano(NN["res_inb"], NN["pct_inb"]), _rano(NN["res_std"], NN["pct_std"])
+            nm = {2: L("两条都达到", "both met"), 1: L("达到一条", "one met"), 0: L("都未达到", "neither met")}
+            out.append(("ok" if ri == 2 else ("warn" if ri == 1 else "bad"),
+                        L(f"切除目标（RANO resect：切除 > {pg:g}% 或残留 ≤ {th:g} mL）：INBRAIN 切除 {NN['pct_inb']:.0f}%、残留 {NN['res_inb']:.1f} mL，{nm[ri]}；条带 切除 {NN['pct_std']:.0f}%、残留 {NN['res_std']:.1f} mL，{nm[rs]}。按‘刺激全阴性’估计的上限",
+                          f"Resection goal (RANO resect: > {pg:g}% removed or <= {th:g} mL left): INBRAIN {NN['pct_inb']:.0f}% removed, {NN['res_inb']:.1f} mL left, {nm[ri]}; strip {NN['pct_std']:.0f}% removed, {NN['res_std']:.1f} mL left, {nm[rs]}. Upper bound assuming negative stimulation")))
+        MR = G.get("MOTOR_RISK")
+        if MR:
+            near8 = MR["ttd_lesion"] <= 8.0
+            inf = MR.get("cortex_infiltrated")
+            out.append(("warn" if MR["n_factors"] else "ok",
+                        L(f"运动风险分层（Rosenstock 2017）：病灶（含 FLAIR）到 CST 最近 {MR['ttd_lesion']:.0f} mm（强化核心 {MR['ttd_core']:.0f} mm）" + ("，≤ 8 mm 是风险因素" if near8 else "，> 8 mm") +
+                          "；运动皮层" + ("与病灶重叠（近似，风险因素）" if inf else "未与病灶重叠（近似）") + "；静息运动阈值比值需要 nTMS，无数据。距离 > 8 mm 且运动皮层未浸润时，原研究里没有新的永久性运动障碍",
+                          f"Motor risk stratification (Rosenstock 2017): lesion (incl. FLAIR) to CST {MR['ttd_lesion']:.0f} mm (enhancing core {MR['ttd_core']:.0f} mm)" + (", <= 8 mm is a risk factor" if near8 else ", > 8 mm") +
+                          "; motor cortex " + ("overlaps the lesion (approximate, risk factor)" if inf else "does not overlap the lesion (approximate)") + "; the resting motor threshold ratio needs nTMS, no data. With > 8 mm and no motor cortex infiltration, no new permanent motor deficit occurred in the original study")))
         dx = getattr(self.logic, "side_dx", None)
         if self.side.currentIndex == 0 and dx is not None:
             out.append(("warn" if dx < 10 else "ok", L(f"侧别（自动）：核心离中线 {dx:.0f} mm", f"Side (auto): core {dx:.0f} mm from the midline") + (L("，请手动确认", ", please confirm manually") if dx < 10 else "")))
@@ -1612,9 +1687,9 @@ class INBRAINPlannerWidget(ScriptedLoadableModuleWidget):
                                f"for segments judged separable, the finer pitch needs a narrower safety margin: about {B['margin_cm2']:.1f} cm² of cortex can enter the resection assessment")))
         N = (B or {}).get("nce") if B else None
         if N and N.get("total"):
-            items.insert(2, (L(f"非强化（FLAIR）残留估计（阈值 {N['thr']:g} mL）", f"Residual non-enhancing (FLAIR) tumour, est. (threshold {N['thr']:g} mL)"), f"{N['res_inb']:.1f} mL", f"{N['res_std']:.1f} mL",
-                             L(f"FLAIR 区共 {N['total']:.1f} mL；可分离段或低风险段旁的 FLAIR 组织计为可切，靠功能区且未分离的段保留。残留 ≤ {N['thr']:g} mL 与更长生存相关（65 岁以下）",
-                               f"FLAIR total {N['total']:.1f} mL; FLAIR next to separable or low-risk segments counts as resectable, next to unseparated segments near function it stays. Residual ≤ {N['thr']:g} mL is associated with longer survival (age < 65)")))
+            items.insert(2, (L(f"非强化（FLAIR）残留估计（目标 ≤ {N['thr']:g} mL 或切除 > {self.val('NCE_PCT'):g}%）", f"Residual non-enhancing (FLAIR) tumour, est. (goal <= {N['thr']:g} mL or > {self.val('NCE_PCT'):g}% removed)"), f"{N['res_inb']:.1f} mL" + (L(f"（切除 {N['pct_inb']:.0f}%）", f" ({N['pct_inb']:.0f}% removed)") if N.get("pct_inb") is not None else ""), f"{N['res_std']:.1f} mL" + (L(f"（切除 {N['pct_std']:.0f}%）", f" ({N['pct_std']:.0f}% removed)") if N.get("pct_std") is not None else ""),
+                             L(f"FLAIR 区共 {N['total']:.1f} mL；可分离段或低风险段旁的 FLAIR 组织计为可切，靠功能区且未分离的段保留。残留 ≤ {N['thr']:g} mL 与更长生存相关（65 岁以下）" + (f"。功能边界估计（CST ≤ {N['cst_hard']:g} mm 需要皮层下刺激，单独列出；CST 到 {N['cst_soft']:g} mm、AF {N['af_margin']:g} mm 内靠术中定位判定）：INBRAIN 留 {N['res_func_inb']:.1f} mL，条带留 {N['res_func_std']:.1f} mL；另有 {N['f_hard']:.1f} mL 离 CST ≤ {N['cst_hard']:g} mm，需要皮层下刺激（两种器件相同），{N['f_cst_dep']:.1f} mL 在 CST 软界线内，{N['f_af_dep']:.1f} mL 靠近 AF" if N.get("res_func_inb") is not None else ""),
+                               f"FLAIR total {N['total']:.1f} mL; FLAIR next to separable or low-risk segments counts as resectable, next to unseparated segments near function it stays. Residual ≤ {N['thr']:g} mL is associated with longer survival (age < 65)" + (f". Functional-boundary estimate (CST within {N['cst_hard']:g} mm needs subcortical stimulation and is listed apart; CST up to {N['cst_soft']:g} mm and AF within {N['af_margin']:g} mm depend on mapping): INBRAIN leaves {N['res_func_inb']:.1f} mL, the strip {N['res_func_std']:.1f} mL; {N['f_hard']:.1f} mL lies within {N['cst_hard']:g} mm of the CST and needs subcortical stimulation (either device), {N['f_cst_dep']:.1f} mL in the CST soft zone and {N['f_af_dep']:.1f} mL near the AF" if N.get("res_func_inb") is not None else ""))))
         if self.shift_rows:
             keys = list(G["KEYS"]); w = {k: min(cc[k] for _, cc in self.shift_rows[1:]) for k in keys}
             items.append((L("脑移位后参考目标覆盖（最差）", "Reference-target coverage after brain shift (worst)"), " / ".join(f"{k} {w[k]:.0%}" for k in keys), "—",
@@ -2002,7 +2077,7 @@ class INBRAINPlannerWidget(ScriptedLoadableModuleWidget):
         if self.device_json: prm["DEVICE"] = json.dumps(self.device_json, ensure_ascii=False)
         labels = {k: T(lab) for spec in [P_DEVICE, P_TARGET, P_CRANIO, P_OPT, P_TIME, P_TRACT, P_SKULL, P_COST, P_SHIFT] for k, lab, *_ in spec}
         _tipsrc = {it[0]: it[-1] for spec in [P_DEVICE, P_TARGET, P_CRANIO, P_OPT, P_TIME, P_TRACT, P_SKULL, P_COST, P_SHIFT] for it in spec}
-        _extra = {"WIN_SHAPE": L("骨窗形状", "Window shape"), "WIN_FIT": L("先评分再定骨窗", "Score first, then fit the window"), "NCE_TARGET": L("FLAIR 残留未达标时自动扩大骨窗", "Enlarge the window when the FLAIR residual is above target"),
+        _extra = {"WIN_SHAPE": L("骨窗形状", "Window shape"), "WIN_FIT": L("先评分再定骨窗", "Score first, then fit the window"), "NCE_TARGET": L("FLAIR 残留偏高时按性价比扩大骨窗", "Enlarge the window while it pays off"),
                   "AUTO_SHIFT": L("按肿瘤体积自动设脑移位下沉量", "Brain-shift sink set from tumour volume"), "STIM_MODEL": L("刺激范围按电流算", "Stimulation reach from current"), "AD_STRIP": L("传统流程加后放电监测条带", "Conventional workflow adds an after-discharge strip"),
                   "REQ_HEALTHY": L("要求健康参照触点", "Require healthy reference contacts"), "FMRI_PATH": L("术前 fMRI 文件（空 = 未用）", "Preoperative fMRI file (empty = not used)"), "NTMS_PATH": L("术前 nTMS 文件（空 = 未用）", "Preoperative nTMS file (empty = not used)"),
                   "ANGLES": L("每个候选位置试的旋转角度", "Rotation angles tried at each candidate spot"), "DEVICE": L("自定义器件（JSON）", "Custom device (JSON)")}

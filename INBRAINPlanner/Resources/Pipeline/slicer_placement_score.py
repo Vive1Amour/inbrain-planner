@@ -59,6 +59,10 @@ VEIN_HARD = False      # True: placements with any contact inside VEIN_SAFE are 
 MAX_STRAIN = 0.20      # contact spacing across the array may stretch/compress at most this fraction when it follows the cortex (spring-like fit, Blenkmann 2017)
 BND_SRC = "core"       # resection boundary to verify: "core" = enhancing core + necrosis (default), "flair" = FLAIR outer edge (supramaximal)
 NCE_THR = 5.0          # residual non-enhancing tumour threshold (mL) for the better survival group
+NCE_CST_HARD = 8.0       # FLAIR within this distance (mm) of the corticospinal tract stays: tumour-to-CST distance <= 8 mm is the risk threshold for a new motor deficit
+                        # (nTMS + DTI risk model, Rosenstock/Picht group) and a surface array cannot test a deep tract; without subcortical stimulation it is not cleared
+NCE_CST_SOFT = 12.0     # CST 8-12 mm: depends on mapping (no new permanent paresis at >= 12 mm in a fibre-tracking study)
+NCE_AF_MARGIN = 10.0    # arcuate fasciculus: no safe distance exists (resection stops at the stimulation response, Duffau), imaging AF is the least reliable tract; same 10 mm as a 1 cm margin
 SEG_LEN = 10.0         # boundary is split into segments about this long (mm); each needs a yes/no from mapping (1 cm = clinical negative-mapping spacing)
 SUPRA = 8.0            # extended resection to verify beyond the boundary (mm): a contact on the edge + one this far outside decides a segment
 BND_DEPTH = 40.0       # how deep below the cortex a tumour still projects onto it (mm)
@@ -672,6 +676,15 @@ if PRUNE and len(SPLAN) > 1:   # same pruning for the strip plan
         r["seg_new_full"] = r["seg_full"] - _f; r["seg_new_edge"] = (r["seg_edge"] - _e - _f) - r["seg_new_full"]; _f |= r["seg_full"]; _e |= r["seg_edge"]
 STRIP_FULL, STRIP_EDGE, STRIP_SEP = len(gotF), len(gotE | gotF), len(gotF & gotG)
 STRIP_SEP_SET = gotF & gotG
+# Save the strip plan (contact coordinates and per-segment state) so figures can show the strip version from the same view
+try:
+    _st = ["open" if SEG_REQ[i] else "low_risk" for i in range(NSEG)]
+    for i in gotE: _st[i] = "edge_only"
+    for i in gotF: _st[i] = "function_only"
+    for i in gotF & gotG: _st[i] = "decided"
+    STRIP_PLAN_EXPORT = dict(contacts=[np.asarray(r["L"]).round(2).tolist() for r in SPLAN], seg_xyz=np.asarray(SEGC).round(2).tolist() if NSEG else [], seg_state=_st)
+except Exception as _e:
+    STRIP_PLAN_EXPORT = None; print("strip export:", _e)
 gotF, gotE, gotG = _gF, _gE, _gG
 strip_lang_k, strip_motor_k = [], []
 for r in SPLAN:
@@ -702,6 +715,31 @@ try:
         _keep_std = SEG_REQ.copy(); _keep_std[list(STRIP_SEP_SET)] = False
         NCE_INFO = dict(total=round(float(_cnt.sum()), 1), res_inb=round(float(_cnt[_keep_inb].sum()), 1),
                         res_std=round(float(_cnt[_keep_std].sum()), 1), res_core_only=round(float(_cnt.sum()), 1), thr=NCE_THR)
+        # Second estimate (functional boundary, per tract). Resection normally continues up to the functional boundary, not up to a depth limit
+        # (SUPRAMAX, 5-ALA reviews). A FLAIR voxel stays behind when it is (a) within NCE_CST_HARD of the corticospinal tract (not clearable from the
+        # surface, both devices), or (b) within NCE_CST_SOFT of the CST / NCE_AF_MARGIN of the arcuate fasciculus AND owned by a segment that mapping did
+        # not decide. FLAIR farther from the tracts counts as resectable by anatomy. The same rules are applied to both devices.
+        try:
+            _inf = np.full(len(_ras), 1e9)
+            _dc = cKDTree(np.vstack(tracts["CST"])[::3]).query(_ras)[0] if "CST" in tracts else _inf
+            _da = cKDTree(np.vstack(tracts["AF"])[::3]).query(_ras)[0] if "AF" in tracts else _inf
+            _hard = _dc <= NCE_CST_HARD
+            _cdep = (~_hard) & (_dc <= NCE_CST_SOFT)
+            _adep = (~_hard) & (~_cdep) & (_da <= NCE_AF_MARGIN)
+            _dep = _cdep | _adep
+            # CST <= NCE_CST_HARD: no new deficit occurred above 8 mm (Rosenstock/Picht nTMS risk model, Front Oncol 2021), but closer tissue is
+            # still resected in practice under subcortical stimulation (stop at about 4 mA, Front Oncol 2022). Surface arrays and strips cannot do
+            # that, so this part is reported separately as 'needs subcortical stimulation' instead of being counted as left behind.
+            _fi = float((_dep & _keep_inb[_own]).sum())*_vml
+            _fs = float((_dep & _keep_std[_own]).sum())*_vml
+            NCE_INFO.update(res_func_inb=round(_fi, 1), res_func_std=round(_fs, 1), near=round(float((_hard | _dep).sum())*_vml, 1),
+                            f_hard=round(float(_hard.sum())*_vml, 1), f_cst_dep=round(float(_cdep.sum())*_vml, 1), f_af_dep=round(float(_adep.sum())*_vml, 1),
+                            f_cst_dep_inb=round(float((_cdep & _keep_inb[_own]).sum())*_vml, 1), f_af_dep_inb=round(float((_adep & _keep_inb[_own]).sum())*_vml, 1),
+                            cst_hard=NCE_CST_HARD, cst_soft=NCE_CST_SOFT, af_margin=NCE_AF_MARGIN,
+                            # share of non-enhancing tumour removed; RANO resect: > 60 % removed or <= 5 cm3 left both carry a survival benefit (Karschnia 2023)
+                            pct_inb=round(100.0*(1 - NCE_INFO["res_inb"]/max(NCE_INFO["total"], 1e-6)), 1),
+                            pct_std=round(100.0*(1 - NCE_INFO["res_std"]/max(NCE_INFO["total"], 1e-6)), 1))
+        except Exception as _e2: print("NCE functional residual:", _e2)
 except Exception as _e:
     print("NCE residual:", _e)
 gotS = set().union(*[p["r"]["cs"] for p in plan]) if plan else set()
@@ -769,6 +807,20 @@ BND = dict(n_seg=NSEG, n_req=int(SEG_REQ.sum()), n_arr=int(SEG_ARR.sum()), n_pro
            sep=int(SEG_SEP.sum()), strip_sep=STRIP_SEP)
 # boundary localisation: half the recording pitch; for separable segments the difference is the safety margin that need not be kept
 BND.update(nce=NCE_INFO)
+# Motor risk stratification (Rosenstock et al., J Neurosurg 2017, nTMS model): no new permanent motor deficit occurred when the subcortical
+# tumour-to-CST distance was > 8 mm AND the motor cortex was not infiltrated. The third factor (interhemispheric resting motor threshold ratio)
+# needs nTMS and is not available here. Motor-cortex infiltration is approximated by CST cortical entry points lying on the lesion (incl. FLAIR).
+MOTOR_RISK = None
+try:
+    if "CST" in tracts:
+        _ct = cKDTree(np.vstack(tracts["CST"])[::2])
+        _lv = np.argwhere(lab > 0)[:, ::-1]; _lras = (IJK2RAS @ np.c_[_lv, np.ones(len(_lv))].T)[:3].T
+        _ttd_l = float(_ct.query(_lras[::3])[0].min()); _ttd_c = float(_ct.query(core_ras[::3])[0].min())
+        _cm = TRACT_MASK.get("CST")
+        _inf = bool((_cm & (d_lesion <= 1.0)).any()) if _cm is not None else None
+        MOTOR_RISK = dict(ttd_lesion=round(_ttd_l, 1), ttd_core=round(_ttd_c, 1), cortex_infiltrated=_inf,
+                          n_factors=int(_ttd_l <= NCE_CST_HARD) + int(bool(_inf)))
+except Exception as _e3: print("motor risk:", _e3)
 BND.update(loc_inb=PITCH/2, loc_std=STRIP_PITCH/2, margin_cm2=round(BND['sep']*SEG_LEN*max(STRIP_PITCH - PITCH, 0)/2/100, 1))
 print(f"\n切除边界（{BND_SRC}）共 {NSEG} 段（每段约 {SEG_LEN:g} mm），靠近功能区要定位 {BND['n_req']} 段；"
       f"阵列完整判定 {BND['full']} 段、至少确认边界 {BND['edge']} 段；手持探针够得着 {BND['n_probe']} 段，骨窗边缘下 {BND['under_bone']} 段")
@@ -856,6 +908,7 @@ for k, v in SC.items():
 import json
 _json_dir = os.path.dirname(OUT) if OUT else os.path.dirname(tumor.GetStorageNode().GetFileName())
 json.dump(dict(counts=COUNTS, params=PARAMS), open(os.path.join(_json_dir, f"counts_{NX}x{NY}.json"), "w"), ensure_ascii=False, indent=1)
+if STRIP_PLAN_EXPORT: json.dump(STRIP_PLAN_EXPORT, open(os.path.join(_json_dir, "strip_plan.json"), "w"))
 
 _P(0.93, "画进场景|Drawing scene")
 # ================= 8 画进场景 =================

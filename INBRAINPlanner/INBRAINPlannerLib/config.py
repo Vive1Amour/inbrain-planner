@@ -40,8 +40,16 @@ P_CRANIO = [
     ("SLIDE", "骨窗下伸入 mm", 15.0, 0, 40, 1, 1, "电极片能滑到骨窗边缘下面多远"),
     ("EXPOSE_MIN", "肿瘤投影外至少 mm", 10.0, 0, 40, 1, 1, "收紧骨窗时，肿瘤皮层投影外至少留这么宽（小骨窗定义 ≤ 1 cm）"),
     ("EXPOSE_MAX", "肿瘤投影外最多 mm", 30.0, 10, 60, 1, 1, "定制骨窗一般只露出肿瘤外 2–3 cm，超过时提示"),
-    ("WIN_R_LIMIT", "扩窗上限半径 mm", 50.0, 25, 80, 1, 0, "残留未达标时骨窗最多扩到这么大"),
-    ("NCE_STEP_MIN", "扩窗最小收益 mL", 2.0, 0, 20, 0.5, 1, "再扩一步残留至少减少这么多才扩"),
+    ("ENTRY_ALT", "入口比较的备选数", 0, 0, 8, 1, 0, "0 = 只用自动入口（默认）；大于 0 时再规划这么多个备选入口，选 FLAIR 残留最低的，每个约多花 20 秒"),
+    ("ENTRY_GAP", "备选入口间距 mm", 30.0, 10, 80, 5, 0, "备选入口之间至少相距这么远，避免比较几乎相同的位置"),
+    ("NCE_CST_HARD", "运动束近区 mm", 8.0, 0, 20, 1, 0, "离皮质脊髓束这么近的 FLAIR 要靠皮层下刺激才能切，单独列出（> 8 mm 时没有新运动障碍）"),
+    ("NCE_CST_SOFT", "运动束定位区 mm", 12.0, 0, 30, 1, 0, "近区到这个距离之间的 FLAIR 靠术中定位判定：所在段被判定就算可切"),
+    ("NCE_AF_MARGIN", "语言束定位区 mm", 10.0, 0, 30, 1, 0, "离弓状束这么近的 FLAIR 靠清醒期刺激判定；弓状束没有影像安全距离，这只是筛选半径"),
+    ("NCE_PCT", "非强化切除比例目标 %", 60.0, 0, 100, 5, 0, "RANO resect：切除 > 60% 或残留 ≤ 5 mL 都与生存获益相关；两条都满足才停止扩窗"),
+    ("NCE_TRIGGER", "扩窗触发残留 mL", 5.0, 0, 50, 0.5, 1, "FLAIR 残留估计高于这个值才尝试扩大骨窗；默认 5 mL，即 RANO 超全切的分界"),
+    ("WIN_R_LIMIT", "扩窗面积上限（半径 mm）", 45.0, 25, 80, 1, 0, "骨窗最多扩到半径这么大的圆的面积（45 mm ≈ 64 cm²），椭圆窗也按面积算"),
+    ("NCE_STEP_MIN", "扩窗每步最小收益 mL", 3.0, 0, 20, 0.5, 1, "和上一个采用的骨窗比，这一步残留至少少这么多才采用"),
+    ("NCE_EFF", "每多开 10 cm² 至少少 mL", 2.0, 0, 20, 0.5, 1, "扩窗的性价比；达不到就停在上一个骨窗，这就是“甜点”"),
     ("MIDLINE_EX", "中线禁区 mm", 12.0, 0, 40, 1, 1, "上矢状窦、大脑镰"),
     ("MIDLINE_CAUTION", "中线扣分 mm", 20.0, 0, 50, 1, 1, ""),
     ("BASE_NZ", "颅底阈值", -0.35, -1, 0, 0.05, 2, "皮层法向 z 低于它 = 颅底面，不开"),
@@ -102,7 +110,7 @@ P_COST = [
     ("PRICE_INBRAIN", "阵列单价 €", 3000, 0, 100000, 100, 0, "按实际采购价填写"),
     ("N_ARRAY", "每例片数", 1, 1, 10, 1, 0, "同一片阵列可多次重新放置"),
     ("PRICE_STRIP", "条带单价 €", 400, 0, 20000, 50, 0, "按实际采购价填写"),
-    ("N_STRIP", "每例条数", 2, 0, 10, 1, 0, ""),
+    ("N_STRIP", "每例条数", 1, 0, 10, 1, 0, ""),
 ]
 P_SHIFT = [
     ("SHIFT_SINK", "下沉 mm", 8.0, 0, 30, 0.5, 1, "开颅后皮层向内塌陷：骨窗中心最大，到可伸出范围边缘减到 0"),
@@ -228,7 +236,11 @@ def region_name(lab):
 
 
 # 计算缓存：Slicer 命令行模块要纯英文路径，计算放这里，结果同步到“病例文件夹名_Slicer”
-CACHE_DIR = os.path.join(os.path.expanduser("~"), ".inbrain_planner")
+import tempfile as _tempfile
+# The working cache lives in the system temp folder (ASCII path, as Slicer CLI modules require). Everything users keep is synced to
+# "<case folder>_Slicer" in the result folder; the cache is rebuilt from there when needed and deleted when Slicer quits,
+# so nothing stays outside the project.
+CACHE_DIR = os.environ.get("INBRAIN_CACHE") or os.path.join(_tempfile.gettempdir(), "inbrain_planner")
 STYLE_KEY = "INBRAINPlanner/Style4/"     # 改过默认值时换版本号，旧的个人设置不再覆盖新默认
 
 
@@ -285,11 +297,11 @@ ctkCollapsibleButton QWidget#sectionBody { background: #ffffff; border-bottom-le
 # 鼠标移到参数上显示的说明：(中文, English)。没列在这里的参数用参数表里原有的提示
 PARAM_TIPS = {
     "STIM_I": ("刺激能查到多大范围按电流算：r = √(I/k) + 触点半径。参考资料里 Penfield 法从 1 mA 起、最高 20 mA；8 mA 时单极半径约 3 mm",
-               "Stimulation reach from current: r = √(I/k) + contact radius. the reference material gives Penfield stimulation from 1 mA up to 20 mA; at 8 mA the monopolar radius is about 3 mm"),
+               "Stimulation reach from current: r = √(I/k) + contact radius. The reference material gives Penfield stimulation from 1 mA up to 20 mA; at 8 mA the monopolar radius is about 3 mm"),
     "K_RANCK": ("电流–距离关系 I = k·r² 里的兴奋常数。1292 µA/mm² 是在皮层锥体细胞上测的，文献范围约 100–4000；是微刺激的数，用到宏刺激只是近似",
                 "Excitability constant in I = k·r². 1292 µA/mm² was measured on cortical pyramidal cells; reported values span about 100–4000. It comes from microstimulation, so for macro contacts it is an approximation"),
     "CONTACT_D": ("刺激触点直径，加进激活半径。参考资料：INBRAIN 大触点约 1 mm、小触点 25 µm",
-                  "Diameter of the stimulating contact, added to the activation radius. Reference material: INBRAIN large contacts about 1 mm, small ones 25 µm"),
+                  "Diameter of the stimulating contact, added to the activation radius. Case file: INBRAIN large contacts about 1 mm, small ones 25 µm"),
     "BIPOLAR_SPREAD": ("语言段按 Penfield 双极刺激：相邻两个触点一对，电流集中在两者之间，两个触点和它们的中点都能测，但半径只按单极的这个比例；运动段按 Taniguchi 单极",
                        "Language segments use Penfield bipolar stimulation: two neighbouring contacts form a pair and current stays between them, so both contacts and their midpoint can test tissue, with a radius this fraction of the monopolar one; motor segments use Taniguchi monopolar"),
     "STRIP_CD": ("传统流程里探针在条带触点处刺激，激活半径按这个触点大小算",
@@ -301,14 +313,22 @@ PARAM_TIPS = {
     "NTMS_W_LANG": ("nTMS 语言阳性点的权重。nTMS 语言定位与术中电刺激的一致性不稳定，默认权重较低", "Weight of nTMS language positive points. Agreement of nTMS language mapping with intraoperative stimulation is inconsistent, so the default weight is lower"),
     "NX": ("阵列横向有几列大触点（大触点能刺激也能记录）", "Number of large-contact columns across the array (large contacts can stimulate and record)"),
     "NY": ("阵列纵向有几行大触点；3×7 = 21 个大触点", "Number of large-contact rows along the array; 3×7 = 21 large contacts"),
-    "PITCH": ("相邻大触点中心之间的距离；示意阵列 3 mm（假设），商用条带 10 mm", "Centre-to-centre distance of neighbouring large contacts; INBRAIN case parameters 3 mm, commercial strips 10 mm"),
+    "PITCH": ("相邻大触点中心之间的距离；示意阵列 3 mm（假设），商用条带 10 mm", "Centre-to-centre distance of neighbouring large contacts; illustrative array 3 mm (assumed), commercial strips 10 mm"),
     "REC_REACH_L": ("一个大触点能“听到”多远的皮层活动（被动记录的半径）", "How far a large contact can pick up cortical activity (passive recording radius)"),
     "REC_REACH_S": ("小触点只记录不刺激，记录半径比大触点小", "Small contacts only record; their recording radius is smaller than that of large contacts"),
     "TRACT_NEAR": ("皮层点与 CST/AF 纤维束的距离小于该值时，视为纤维束皮层入口（潜在功能区）", "How close a cortical point must be to the CST/AF tract to count as a tract entry (possible eloquent cortex)"),
     "REC_FLAIR": ("离 FLAIR 浸润带多近的皮层要记录（监测后放电、找浸润）", "Cortex this close to the FLAIR zone is a recording target (after-discharges, infiltration)"),
     "REC_LESION": ("距病灶该距离以内的皮层纳入记录区", "Cortex within this distance of the lesion is included in the recording area"),
-    "WIN_R_LIMIT": ("FLAIR 残留估计高于 5 cm³ 时，入口不动、逐步扩大骨窗重新规划，最多扩到这个半径（50 mm ≈ 79 cm²，常见骨瓣面积上限约 80 cm²）", "When the estimated FLAIR residual is above 5 cm³ the window is enlarged around the same entry, up to this radius (50 mm ≈ 79 cm², common flap areas reach about 80 cm²)"),
-    "NCE_STEP_MIN": ("每扩大一步，FLAIR 残留估计至少要减少这么多才采用；否则停止，避免为了很小的收益开更大的骨窗", "Each enlargement step must reduce the estimated FLAIR residual by at least this much, otherwise it stops; avoids a larger craniotomy for a tiny gain"),
+    "WIN_R_LIMIT": ('扩窗的面积上限，等于半径这么大的圆的面积（45 mm ≈ 64 cm²；常见骨瓣面积 25–80 cm²），椭圆窗也按面积算。入口不动，每步骨窗长宽各加 10%（面积约加 21%）重新规划', 'Area cap for enlarging: the area of a circle of this radius (45 mm ≈ 64 cm²; common flaps are 25–80 cm²), also applied to oval windows. The entry stays; each step grows length and width by 10% (about +21% area) and replans'),
+    "ENTRY_ALT": ('自动入口是在可开颅区域里按评分选的，评分看的是能露出多少目标、通道长短、是否穿纤维束、是否压功能区或静脉，不看最终的 FLAIR 残留。设为大于 0 时，再规划评分靠前、彼此相距较远的几个备选入口，只有残留明显更低（少 2 mL 以上且至少 3%）、可分离段最多少 1 个时才换入口。不需要手动打点。0007、0009、0004 上比较后自动入口都已是最好，所以默认关闭', 'The automatic entry is picked inside the feasible craniotomy area by a score (targets exposed, path length, crossing tracts, eloquent cortex or veins under it); the score does not look at the final FLAIR residual. Above 0, the best few well-separated alternative entries are also planned, and the entry is changed only if the residual is clearly lower (at least 2 mL and 3% lower) with at most one decided segment fewer. No manual point is needed. On cases 0007, 0009 and 0004 the automatic entry was already the best, so it is off by default'),
+    "ENTRY_GAP": ('备选入口之间的最小距离，避免比较几乎相同的位置', 'Minimum distance between the alternative entries, so that nearly identical positions are not compared'),
+    "NCE_CST_HARD": ('第二个残留估计（功能边界估计）里的运动束近区。肿瘤到皮质脊髓束 ≤ 8 mm 是新运动障碍的风险因素：原始模型里，距离 > 8 mm 且运动皮层未被浸润时，从未出现新的永久性运动障碍（Rosenstock 2017，J Neurosurg）；验证队列里 > 8 mm 的病人没有恶化（Front Oncol 2021）。这部分在临床上仍会切，但要在皮层下刺激监控下切到约 4 mA 为止（Front Oncol 2022）；表面阵列和条带都做不了皮层下刺激，所以单独列为“需要皮层下刺激”，不计入残留，两种器件相同', 'Motor near zone of the second (functional-boundary) residual estimate. A tumour-to-CST distance <= 8 mm is a risk factor for a new motor deficit: in the original model no new permanent deficit occurred with > 8 mm and no motor cortex infiltration (Rosenstock 2017, J Neurosurg); in a validation cohort no patient above 8 mm deteriorated (Front Oncol 2021). This tissue is still resected in practice, under subcortical stimulation down to about 4 mA (Front Oncol 2022). Neither surface arrays nor strips stimulate subcortically, so it is listed apart as "needs subcortical stimulation" and not counted as left behind; the same for both devices'),
+    "NCE_CST_SOFT": ('近区到这个距离之间的 FLAIR 靠术中定位判定：所在的边界段被判定（两个刺激点都测到）就算可切，没被判定就算残留。一项纤维追踪研究里，病灶离 CST ≥ 12 mm 时没有新的永久性瘫痪', 'FLAIR between the near zone and this distance is decided by mapping: it counts as resectable when its boundary segment is decided (both stimulation sites tested), otherwise as left behind. In one fibre-tracking study no new permanent paresis occurred at >= 12 mm from the CST'),
+    "NCE_AF_MARGIN": ('离弓状束这么近的 FLAIR 靠清醒期刺激判定，规则和运动束定位区相同。语言束没有影像上的安全距离，临床上切到刺激出现语言反应为止（Duffau 组）；影像上的弓状束也最不可靠，所以这只是一个保守的筛选半径，不是“离多远可以切”', 'FLAIR this close to the arcuate fasciculus is decided by awake stimulation, with the same rule as the motor mapping zone. Language tracts have no imaging safe distance: resection stops at the stimulation response (Duffau group), and the imaging AF is the least reliable tract, so this is only a conservative screening radius, not a "safe distance"'),
+    "NCE_PCT": ("非强化（FLAIR）肿瘤的切除比例目标。RANO resect（Karschnia 2023，1,000 多例 IDH 野生型胶质母细胞瘤）：强化全切后，非强化肿瘤切除 > 60% 或残留 ≤ 5 cm³ 都与更长生存相关，两条都满足时中位生存 29 个月，对比 20 个月。对 FLAIR 很大的肿瘤（如 0007 约 200 mL），5 mL 几乎达不到，60% 是现实的目标。扩窗会一直尝试，直到两条都满足、或不再划算（甜点规则）", "Target share of non-enhancing (FLAIR) tumour removed. RANO resect (Karschnia 2023, over 1,000 IDH-wildtype glioblastomas): after complete enhancing resection, removing > 60% of non-enhancing tumour or leaving <= 5 cm³ each goes with longer survival, both together with a median 29 vs 20 months. For very large FLAIR volumes (about 200 mL in case 0007) 5 mL is out of reach and 60% is the realistic goal. Enlargement is tried until both are met or it stops paying off (sweet-spot rule)"),
+    "NCE_TRIGGER": ('FLAIR 残留估计高于这个值才开始尝试扩大骨窗。默认 5 mL，和 RANO resect 超全切的分界一致：残留非强化肿瘤 ≤ 5 cm³（或切除 > 60%）与更长生存相关（Karschnia 2023）。调大会让残留在 5 mL 到这个值之间的病例不再尝试扩窗', 'The window is only enlarged when the estimated FLAIR residual is above this value. Default 5 mL, the RANO resect supramaximal boundary: <= 5 cm3 residual non-enhancing tumour (or > 60% removed) goes with longer survival (Karschnia 2023). Raising it stops cases between 5 mL and the value from trying to enlarge'),
+    "NCE_EFF": ('扩窗的性价比：和上一个采用的骨窗比，每多开 10 cm² 骨窗，FLAIR 残留估计至少要少这么多。允许试一步不划算的（有时残留先不变再下降，如 0009），连续两步不划算就停在上一个采用的骨窗，这就是“甜点”。0007 停在约 46 cm²（再多开 10 cm² 只少 1.4 mL）', 'Cost-benefit of enlarging: compared with the last kept window, each extra 10 cm² must lower the estimated FLAIR residual by at least this much. One inefficient step is tolerated (the residual is sometimes flat before it drops, as in 0009); two in a row stop at the last kept window, the sweet spot. Case 0007 stops at about 46 cm² (another 10 cm² gains only 1.4 mL)'),
+    "NCE_STEP_MIN": ('每扩大一步，和上一个采用的骨窗比，FLAIR 残留估计至少要少这么多才采用。和“每多开 10 cm² 至少少 mL”同时满足才算划算；连续两步不划算就停', 'Each enlargement step must lower the estimated FLAIR residual by at least this much compared with the last kept window. It must also meet the mL-per-10-cm² requirement; two inefficient steps in a row stop the search'),
     "EXPOSE_MIN": ("先评分再定骨窗时，骨窗边缘至少要离肿瘤在皮层上的投影这么远。“小骨窗”一般定义为不超出肿瘤最大直径（深部肿瘤按皮层投影）1 cm",
                    "When the window is fitted after scoring, its edge stays at least this far outside the tumour's projection on the cortex. A small craniotomy is usually defined as no more than 1 cm beyond the tumour's maximal diameter (cortical projection for deep tumours)"),
     "EXPOSE_MAX": ("定制骨窗一般只露出肿瘤和外面 2–3 cm 皮层。骨窗比这大时在检查里提示",
@@ -336,7 +356,7 @@ PARAM_TIPS = {
     "STRIP_PITCH": ("商用条带相邻触点的间距（如 DIXI 条带 10 mm）", "Contact spacing of the commercial strip (e.g. DIXI strips 10 mm)"),
     "CST_STOP_FA": ("FA 低于这个值时 CST 追踪停止；水肿区 FA 较低，阈值过高时追踪会中断", "CST tracking stops below this FA; oedema lowers FA, too high breaks the tract"),
     "AF_SEED_FA": ("AF 纤维追踪起点的 FA 下限", "Minimum FA to seed AF tracking"),
-    "N_STRIP": ("每例使用的条带数（同一条带可多次重新放置）", "Strips used per case (one strip can be moved repeatedly)"),
+    "N_STRIP": ("每例用于刺激和记录的条带数，不含后放电监测条带。默认 1 条：同一条带可多次重新放置，CCEP 的刺激端和记录端靠挪动一次完成（见“条带 CCEP 额外放置”）。加上后放电监测条带，每例共 2 条，和常规清醒定位一致", "Strips for stimulation and recording per case, not counting the afterdischarge strip. Default 1: one strip is moved repeatedly, and CCEP stimulation and recording ends are done by moving it once (see the CCEP extra placement). With the afterdischarge strip, 2 strips per case, as in routine awake mapping"),
     "SEG_LEN": ("切除边界按这个长度分段，每段需给出是否可扩大切除的结论（1 cm = 临床阴性定位间距）", "The resection boundary is split into segments this long; each needs a resect / keep decision (1 cm = clinical negative-mapping spacing)"),
     "SUPRA": ("边界上一个测试点 + 边界外该距离处一个测试点：两处均为阴性时，可将切除范围扩大此距离", "One test site on the boundary + one this far outside: if both are negative, the resection can be extended by this distance"),
     "W_VEIN": ("开颅入口 10 mm 内有 SWI 大静脉、或通道经过大静脉时扣的分；0 = 不用 SWI", "Penalty when an SWI vein lies within 10 mm of the entry or the corridor passes it; 0 = ignore SWI"),

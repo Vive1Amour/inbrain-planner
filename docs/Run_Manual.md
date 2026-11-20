@@ -10,7 +10,7 @@ GUI version: the 3D Slicer plugin in `INBRAINPlanner/`, with every parameter adj
 
 - 3D Slicer 5.12.4 stable (on Apple Silicon use the Intel build under Rosetta). Extensions: SlicerDMRI (DWI, tensor, FA, tracking), SlicerElastix (registration), SlicerDcm2nii (dependency of SlicerDMRI), optional LanguagePacks.
 - Python 3 with Pillow, matplotlib, numpy, openpyxl (set `PY` to the interpreter; default `~/.venvs/ds/bin/python`).
-- ASCII-only work folder: scripts compute in `$WORK/w<case>/` (the plugin uses `~/.inbrain_planner`) (change with `WORK`); results are copied to the `OUT` folder.
+- ASCII-only work folder: scripts compute in `$WORK/w<case>/` (the plugin uses `inbrain_planner` in the system temp folder and deletes it when Slicer quits) (change with `WORK`); results are copied to the `OUT` folder.
 - Dataset folder: `run_case.sh` looks for the case folders and `UCSF-PDGM_DTI.bval` in `DATA` (default: `UCSF-PDGM_Dataset`, three levels up; set `DATA=/path/to/dataset` to override).
 
 ## 2. One-command run
@@ -28,7 +28,7 @@ The second argument is the tumour side: `R` right, `L` left (on axial T1c, image
 When only planning parameters change, skip tensor and tracts and rerun from s3:
 
 ```bash
-export CASE=0007 SIDE=R WORK=~/.inbrain_planner SCRIPTS=$PWD OUT=/path/to/output/UCSF-PDGM-0007_Slicer
+export CASE=0007 SIDE=R WORK=${TMPDIR:-/tmp}/inbrain_planner SCRIPTS=$PWD OUT=/path/to/output/UCSF-PDGM-0007_Slicer
 /Applications/Slicer.app/Contents/MacOS/Slicer --no-splash --python-script s3_plan_render.py
 /Applications/Slicer.app/Contents/MacOS/Slicer --no-splash --python-script s3b_render_real.py
 ~/.venvs/ds/bin/python -I s4_legend.py && ~/.venvs/ds/bin/python -I s5_sensitivity.py && ~/.venvs/ds/bin/python -I s6_same_task.py && ~/.venvs/ds/bin/python -I s7_pack.py

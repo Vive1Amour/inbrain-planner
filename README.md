@@ -52,7 +52,7 @@ INBRAIN Planner answers these questions from routine pre-operative MRI, with one
 
 - One-panel workflow from a downloaded UCSF-PDGM case folder to a placement plan, with progress bars for every step.
 - **Device library** (`INBRAINPlanner/Resources/Settings/devices.json`): INBRAIN array and published specifications of commercial strips and grids; any other layout can be imported as JSON.
-- **Registration check**: FA overlaid on T1c with an opacity slider, and an OK / failed verdict saved with the case and printed in the report.
+- **Registration check**: FA overlaid on T1c with an opacity slider, plus an automatic verdict from tract shape (CST running up-down, AF running front-back); a manual OK / failed verdict takes priority and is saved with the case and printed in the report.
 - **Corridor view**: slices perpendicular to the surgical corridor; a depth slider shows the distance from the corridor axis to CST and AF.
 - **Brain-shift analysis**: sinking set from tumour volume, plus lateral shift in 8 directions; coverage recomputed with electrodes kept at their planned positions.
 - **Brain atlas**: registration to the Harvard-Oxford template, stimulation targets weighted by regional positive probability (Tate 2014, Sarubbo 2020), mapping tasks and tracts suggested from tumour location (Fernández Coello 2013), region of each placement.
