@@ -12,6 +12,7 @@
   <summary><b>Contents</b></summary>
   <ol>
     <li><a href="#about">About</a></li>
+    <li><a href="#at-a-glance">At a glance</a></li>
     <li><a href="#features">Features</a></li>
     <li><a href="#getting-started">Getting started</a></li>
     <li><a href="#usage">Usage</a></li>
@@ -37,6 +38,42 @@ INBRAIN Planner answers these questions from routine pre-operative MRI, with one
 * 3D Slicer 5.x (tested on 5.12.4)
 * SlicerDMRI (tensor, FA, tractography) and SlicerElastix (registration)
 * Python 3, NumPy, SciPy (bundled with Slicer)
+
+## At a glance
+
+![Planned boundary decisions for case 0007](resources/imgs/plan_0007.jpg)
+
+*Case UCSF-PDGM-0007. Each ball is a 1 cm segment of the projected tumour boundary. Green: both stimulation points (on the edge and 8 mm outside) and recording across the edge are possible. Yellow: only the edge can be tested. Red: near function but out of reach. Grey: far from motor and language pathways, resected by imaging.*
+
+### How it works
+
+1. **Reconstruct the anatomy.** MRI and segmentation give the brain and tumour; patient-specific tractography (SlicerDMRI) gives the corticospinal tract (motor) and arcuate fasciculus (language).
+2. **Define the surgical area.** A craniotomy window is proposed, and the tumour is projected onto the cortical surface, because electrodes sit on the surface even when the tumour is deeper. The projected boundary is cut into 1 cm segments.
+3. **Simulate placements.** The array is tried at many positions and angles, fitted to the cortical surface. For each segment the tool checks whether it can stimulate on the boundary and 8 mm outside it, and record on both sides.
+4. **Classify the segments** into the four colours above.
+5. **Optimise and compare.** A greedy search keeps the placements that decide the most new high-risk segments and drops redundant ones; the window is enlarged only when that clearly reduces the estimated residual tumour. The same plan is then run with a conventional 4-contact strip in the same window.
+
+### Same patient, same window: array vs strip
+
+![Array and strip placements in case 0007](resources/imgs/compare_0007.jpg)
+
+### Results on five public cases (UCSF-PDGM)
+
+| Case | Placements (array / strip) | Boundary segments decided | Estimated tumour removed |
+|---|---|---|---|
+| 0004 | **4** / 8 | **7** / 6 of 8 | 100% / 100% |
+| 0007 | **12** / 18 | **23** / 18 of 36 | **63%** / 57% |
+| 0009 | **10** / 18 | **21** / 18 of 25 | **88%** / 72% |
+| 0010 | **17** / 31 | **28** / 19 of 44 | **65%** / 42% |
+| 0019 | **11** / 20 | 19 / 19 of 27 | 96% / 96% |
+
+- About 40% fewer placements and about 40% less estimated mapping time with the array.
+- Estimated removal rises above the 60% linked to longer survival (RANO resect, Karschnia 2023) in 0010 and 0009; small tumours only save placements.
+- At an assumed 3,000 € per array, a case costs about 800 € more; the break-even array price is about 2,200 €.
+
+![Mapping time and cost per case](resources/imgs/time_cost_5cases.png)
+
+These are planning-level simulations with assumed device, time and price parameters, not clinical measurements. Tractography is approximate, brain shift is only modelled, and the gain mixes contact density with built-in stimulation.
 
 ## Features
 
