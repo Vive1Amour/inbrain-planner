@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 (2026-11-20)
+## 0.1.3 (2026-11-20)
 
 - Fix: the window sweet-spot search and auto-shaping run several trials, and the 3D scene kept the arrays, boundary segments and window of the last trial, not necessarily the kept plan (0007: 12 placements reported, 14 arrays drawn). The kept plan is now redrawn when it is not the last trial. Result tables and reports always used the kept plan and are unaffected.
 - The scoring script saves the strip plan (contact coordinates per placement, state of each boundary segment) as STRIP_PLAN_EXPORT and writes strip_plan.json, for figures that show the strip version.
@@ -33,7 +33,7 @@
 - Time model calibrated to the literature: awake phase adds wake-up, baseline test and monitoring per reachable segment; asleep passive recording only on the first N placements, CCEP 2 min per placement; conventional CCEP needs a separate recording strip.
 - Boundary uses only the outer rim of the tumour projection; value card adds boundary localisation.
 
-## 0.3.0 (2026-11-07)
+## 0.1.2 (2026-11-07)
 
 - Planning goal changed from target coverage to **segment-by-segment verification of the resection boundary** (enhancing core, optional FLAIR).
 - Conventional comparison: 1×N commercial strips planned with the same workflow; usual practice and literature case kept as reference rows.
@@ -50,7 +50,7 @@
 - Window fitting follows tailored-craniotomy rules: at least `EXPOSE_MIN` 10 mm around the tumour's projection along the view axis (Carrabba 2022), a check when more than `EXPOSE_MAX` 30 mm is exposed (Sanai 2008/2009, Southwell 2016), and the long axis of elliptical/rectangular windows aligned with the tumour projection (Sughrue 2016).
 - The 3D view hides the S/I/A/P/R/L letters (which drifted away from the hidden box) and shows the orientation marker instead; View tools can turn letters and box on together.
 - Undecided segments: each gets a class (not visible from the window / out of reach / edge only / array cannot fit / no suitable angle / veins / budget) and a next step; a results table (click a row to turn the 3D view there) and a report section.
-- 03, User Guide and Run Manual rewritten for v0.3 with 0007 / 0004 rerun.
+- 03, User Guide and Run Manual rewritten for v0.1.2 with 0007 / 0004 rerun.
 - Default device follows the reference material: about 40 contacts (3×7 large + 18 in-row micro), 8 mm wide, 3 mm pitch.
 - Stimulation reach from current: r = √(I/k) + contact radius; Penfield bipolar (including pair midpoints) for language, Taniguchi monopolar for motor.
 - After-discharge monitoring strip added to the conventional workflow (time and device cost).
@@ -61,7 +61,7 @@
 - UI text matches the current method: ③ renamed "Reference target areas (stimulation / recording)" with a note that they only score the entry and serve as a 3D reference; summary, report and key numbers report decided boundary segments; parameters that no longer act removed (placement score weights, probe grid, strip placements); the after-discharge strip checkbox now reaches the time model; display-style rows use short names and small swatches.
 - Optional: require healthy reference contacts (adds a record-only reference array); pre-operative fMRI weighting of segment risk.
 
-## 0.2.0
+## 0.1.1
 
 - Device library, registration check, corridor view, brain-shift analysis, brain atlas, navigation export, scene parameters, view tools, cost model, web 3D export.
 

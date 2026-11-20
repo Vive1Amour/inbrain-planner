@@ -2,7 +2,7 @@
 
 Load a downloaded UCSF-PDGM case folder into the plugin and do everything in one panel: preprocessing (tensor, registration, tracts) → set parameters → optimise placement → review and export results. The idea is similar to molecular docking software: the brain model is the receptor, the electrode array is the ligand, the bone window is the docking box, and the score is per-segment decisions on the resection boundary and fit.
 
-Planning goal (from v0.3): the resection boundary (default: enhancing-core edge) is projected onto the cortex in 1 cm segments; each segment near CST/AF needs an answer. A contact on the boundary plus one 8 mm outside, both negative, mean that segment can be extended by 8 mm. The array's long axis follows the boundary, so one placement decides several segments; a conventional 1×4 strip is planned with the same workflow for comparison.
+Planning goal (from v0.1.2): the resection boundary (default: enhancing-core edge) is projected onto the cortex in 1 cm segments; each segment near CST/AF needs an answer. A contact on the boundary plus one 8 mm outside, both negative, mean that segment can be extended by 8 mm. The array's long axis follows the boundary, so one placement decides several segments; a conventional 1×4 strip is planned with the same workflow for comparison.
 
 ![English interface](../resources/imgs/UI_screenshot.png)
 
@@ -51,7 +51,7 @@ A grid can also be written as `{"name": "...", "nx": 3, "ny": 7, "pitch": 4, "sm
 
 **③ Reference target areas (stimulation / recording)**
 
-From v0.3 these points no longer drive placement (planning uses boundary segments only); in 3D they are translucent orange / blue patches for reference. The rules below set those patches; core-surface exclusion and tract entries still affect segment risk and where arrays may go.
+From v0.1.2 these points no longer drive placement (planning uses boundary segments only); in 3D they are translucent orange / blue patches for reference. The rules below set those patches; core-surface exclusion and tract entries still affect segment risk and where arrays may go.
 
 - Stimulation area = distance to a tract ≤ "Max distance to tract" and distance to the lesion ≤ "Max stim. target distance to lesion".
 - CST and AF weights: 0 = not a stimulation target; for right-sided cases AF defaults to 0.5, use 1 for left-sided cases.
@@ -203,7 +203,7 @@ After a run, each placement centre is numbered (1, 2, 3…) in 3D and a dark gre
 - Resected core (enhancement + necrosis) < 20 ml → 5 mm, 20–40 ml → 8 mm, > 40 ml → 12 mm; +2 mm if the FLAIR oedema volume is larger than the core; lateral = sinking × 0.4.
 - Basis: lesion volume is the main driver of intraoperative brain shift, and cortical displacement grows with volume (Suess 2002, groups < 20 / 20–40 / > 40 ml; Reinges 2004); oedema and tumour depth predict cortical shift at opening (Hill 1998); cortical displacement is about 1 cm on average and mainly sinking (Roberts 1998), up to 2–2.4 cm (Nimsky 2000). The millimetres per group follow these ranges and can be changed by hand.
 - Suess 2002 also found strip electrodes barely move with the cortex (at most 4.2 mm vs up to 23.4 mm for the cortex), so "contacts stay, tissue moves" is a reasonable approximation.
-- This part still uses the stimulation/recording target coverage (the v0.2 metric), not boundary segments. 0007 (v0.2): core 27 ml, oedema 198 ml → sinking 10 mm, lateral 4 mm; worst direction AF stimulation 96% → 92%, CST 93% → 92%, recording 83% → 79%.
+- This part still uses the stimulation/recording target coverage (the v0.1.1 metric), not boundary segments. 0007 (v0.1.1): core 27 ml, oedema 198 ml → sinking 10 mm, lateral 4 mm; worst direction AF stimulation 96% → 92%, CST 93% → 92%, recording 83% → 79%.
 
 ## Export figure and report
 

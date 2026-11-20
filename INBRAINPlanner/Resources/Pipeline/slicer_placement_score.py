@@ -16,7 +16,7 @@ SMALL = True           # 大触点之间有没有只记录的小触点（INBRAIN
 SMALL_N = 48           # dense layout: number of small contacts
 SMALL_LAYOUT = "cells" # 小触点放哪：cells = 每 4 个大触点中间（(NX-1)×(NY-1) 个）；rows = 每列相邻大触点之间（NX×(NY-1) 个）；stagger = 每列两侧错开各一排（NX×2×2NY 个，官网照片）；dense = 均匀密排 SMALL_N 个
 # 刺激范围按电流算（Ranck 1975 / Tehovnik 1996：激活半径 r = √(I/k)；k = 1292 µA/mm²，Stoney 1968 皮层锥体细胞）
-STIM_MODEL = True     # False = 用固定的 EDGE_TOL / ±3 mm（v0.3 旧做法）
+STIM_MODEL = True     # False = 用固定的 EDGE_TOL / ±3 mm（v0.1.2 旧做法）
 STIM_I = 8.0          # 刺激电流 mA（Penfield 法 1 mA 起、最高 20 mA，参考资料）
 K_RANCK = 1292.0      # µA/mm²
 CONTACT_D = 1.0       # 阵列大触点直径 mm（参考资料：约 1 mm）

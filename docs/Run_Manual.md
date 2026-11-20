@@ -2,7 +2,7 @@
 
 Generates all result figures from the preoperative MRI of one UCSF-PDGM case: tracts → feasible craniotomy region and window → resection boundary segments → array placement plan (per-segment decisions) → strips with the same workflow → time and cost → sensitivity analysis. Case 0007 is used as the example.
 
-Note: the planning core `slicer_placement_score.py` and `time_model.py` are v0.3 (per-segment boundary decisions); the s4 bar chart, s5 sensitivity and s6 same-task scripts still use the v0.2 coverage model and their figures are only a historical reference. Use the plugin for v0.3 results (**Generate report** writes all tables).
+Note: the planning core `slicer_placement_score.py` and `time_model.py` are v0.1.2 (per-segment boundary decisions); the s4 bar chart, s5 sensitivity and s6 same-task scripts still use the v0.1.1 coverage model and their figures are only a historical reference. Use the plugin for v0.1.2 results (**Generate report** writes all tables).
 
 GUI version: the 3D Slicer plugin in `INBRAINPlanner/`, with every parameter adjustable in the interface; see `User_Guide.md`. This manual covers the command-line version.
 
@@ -84,7 +84,7 @@ All scripts are in `INBRAINPlanner/Resources/Pipeline/`:
 
 Cortical envelope: brain mask closed with 6 mm + hole filling.
 
-**Resection boundary segments (v0.3)**
+**Resection boundary segments (v0.1.2)**
 
 - Boundary: `BND_SRC` = `core` (enhancing-core edge, default) or `flair`. Each cortical point looks `BND_DEPTH` 40 mm inward along its normal; the closest lateral distance to the tumour is `DD`; points with `0 < DD ≤ 2 mm` form the boundary line.
 - Segments: farthest-point sampling along the boundary, one every `SEG_LEN` 10 mm.
